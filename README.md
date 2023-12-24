@@ -30,10 +30,6 @@ If, however, you choose a simulation, you need to choose algorithms for both bot
 
 ![picture](resources/algorithms-2.png)
 
-After that, you can play the game. The board looks like this:
-
-![picture](resources/board.png)
-
 If you chose a simulation, you cannot enter any moves, you can just sit and watch. If you chose to play, you will
 control the player one (green P1). Each turn, you can either:
 
@@ -47,8 +43,8 @@ field you want to move to. The rows and columns where you can move your piece ar
 
 #### Placing the wall
 
-If you want to place the wall, simply enter `wx,yd`, where `x` represents the row and `y` the column of the walls
-starting piece. The `d` represents the direction:
+If you want to place the wall, simply enter `wx,yd`, where `x` represents the row letter and `y` the column letter of the walls
+starting piece. The `d` represents the orientation:
 
-* if you want a vertical wall, the direction can be either `s`(south) or `n`(north)
-* if you want a horizontal wall, the direction can be either `e`(east) or `w`(west)
+* if you want a vertical wall, the direction will be `v`
+* if you want a horizontal wall, the direction will be `h`

@@ -13,34 +13,42 @@ class WallPieceStatus:
     VERTICAL = 2
 
 
-SIZE = 9
-WALLS = 30
-
-
-MoveKeyValues = "".join([str(i) for i in range(SIZE)])
-WallKeyValues = "".join([chr(ord('a') + i).lower() for i in range(SIZE-1)])
-
 Wallcolor = Color.PINK
 
 
 class GameState:
-    def __init__(self, is_simulation=False, initialize=True):
-        self.is_simulation = is_simulation
+    def __init__(self, verbose=False, size = 9, walls = 10):
+        self.verbose = verbose
         self.player1 = True
-        self.size = SIZE
+        self.size = size
         self.rows = self.size-1
         self.cols = self.size-1
-        self.player1_walls_num = WALLS
-        self.player2_walls_num = WALLS
+        self.walls = walls
+        self.player1_walls_num = walls
+        self.player2_walls_num = walls
         self.lock = threading.Lock()
         self.walls_can_be_placed = []
 
-        if initialize:
-            self.player1_pos = np.array([self.size-1, self.size//2])
-            self.player2_pos = np.array([0, self.size//2])
+        self.player1_pos = np.array([self.size-1, self.size//2])
+        self.player2_pos = np.array([0, self.size//2])
 
-            self.wallboard = np.zeros((self.rows, self.cols), dtype=int)   
-            self.set_up_board()
+        self.wallboard = np.zeros((self.rows, self.cols), dtype=int)   
+        self.set_up_board()
+
+
+    def reinitialize(self):
+        self.player1_pos = np.array([self.size-1, self.size//2])
+        self.player2_pos = np.array([0, self.size//2]) 
+        self.set_up_board()
+
+        self.player1 = True
+        self.size = self.size
+        self.rows = self.size-1
+        self.cols = self.size-1
+        self.player1_walls_num = self.walls
+        self.player2_walls_num = self.walls
+        self.lock = threading.Lock()
+        self.walls_can_be_placed = []
 
     def set_up_board(self):
         for i in range(self.rows):
@@ -55,6 +63,9 @@ class GameState:
         return game_state
 
     def print_game_stats(self):
+        if not self.verbose:
+            return
+        
         print(Color.GREEN + "{0:<15}".format("Player 1 walls") + Color.WHITE +
               "|" + Color.RED + "{0:<15}".format(
             "Player 2 walls") + Color.RESET,
@@ -63,6 +74,8 @@ class GameState:
         print("{0:<15}|{1:<15}|".format(self.player1_walls_num, self.player2_walls_num))
 
     def print_board(self):
+        if not self.verbose:
+            return
 
         # print(self.wallboard)
 
@@ -152,18 +165,6 @@ class GameState:
     def is_not_wall_blocking_path(self, pos, new_pos):
         return not self.is_wall_blocking_path(pos, new_pos)
 
-    def is_jump(self, move):
-        if self.player1:
-            return abs(self.player1_pos[0] - move[0]) == 2 or abs(self.player1_pos[1] - move[1]) == 2
-        else:
-            return abs(self.player2_pos[0] - move[0]) == 2 or abs(self.player2_pos[1] - move[1]) == 2
-
-    def is_diagonal(self, move):
-        if self.player1:
-            return abs(self.player1_pos[0] - move[0]) == 1 and abs(self.player1_pos[1] - move[1]) == 1
-        else:
-            return abs(self.player2_pos[0] - move[0]) == 1 and abs(self.player2_pos[1] - move[1]) == 1
-
     def is_goal_state(self):
         if self.player1:
             return self.player1_pos[0] == 0
@@ -216,21 +217,11 @@ class GameState:
 
         return children
     
-    def check_valid_move(self, new_pos):
+    def check_valid_move(self, pos, new_pos):
         # Out of bounds
         if not (0 <= new_pos[0] < self.size and 0 <= new_pos[1] < self.size):
             return False
-        
-        if self.player1:
-            pos = self.player1_pos
-            other_player = self.player2_pos
-        else:
-            pos = self.player2_pos
-            other_player = self.player1_pos
-        
-        if np.array_equal(other_player, new_pos):
-                return False
-
+    
         # no wall between player and new_pos
         if self.is_wall_blocking_path(pos, new_pos):
             return False
@@ -245,20 +236,61 @@ class GameState:
         dirs = [(1,0), (0,1), (-1,0), (0,-1)]
         if self.player1:
             pos = self.player1_pos
+            otherpos = self.player2_pos
         else:
             pos = self.player2_pos
+            otherpos = self.player1_pos
         
+        #standard moves
         for x,y in [(pos[0]+i, pos[1] + j) for (i,j) in dirs]:
-            if self.check_valid_move((x,y)):
+            if self.check_valid_move(pos, (x,y)) and not np.array_equal((x,y), otherpos):
                 copy_state = self.copy()
                 if not include_state:
                     available_moves.append((x,y))
                 else:
                     available_moves.append((copy_state, (x,y)))
         
+        # hor jump
+        x_diff = abs(otherpos[0] - pos[0])
+        y_diff = abs(otherpos[1] - pos[1])
+        
+        if (x_diff == 0 and y_diff == 1) or (x_diff == 1 and y_diff == 0):
+            x_dir = otherpos[0]-pos[0]
+            y_dir = otherpos[1]-pos[1]
+            x = otherpos[0] + x_dir
+            y = otherpos[1] + y_dir
+
+            
+            if self.check_valid_move(pos, otherpos):
+                # vert or hor jump
+                if self.check_valid_move(otherpos, (x,y)):
+                    copy_state = self.copy()
+                    if not include_state:
+                        available_moves.append((x,y))
+                    else:
+                        available_moves.append((copy_state, (x,y)))  
+
+                # diag jump
+                if x_dir == 0:
+                    for x,y in [(otherpos[0]+i, otherpos[1]) for i in [1,-1]]:
+                        if self.check_valid_move(otherpos, (x,y)):
+                            copy_state = self.copy()
+                            if not include_state:
+                                available_moves.append((x,y))
+                            else:
+                                available_moves.append((copy_state, (x,y)))
+                if y_dir == 0:
+                    for x,y in [(otherpos[0], otherpos[1]+i) for i in [1,-1]]:
+                        if self.check_valid_move(otherpos, (x,y)):
+                            copy_state = self.copy()
+                            if not include_state:
+                                available_moves.append((x,y))
+                            else:
+                                available_moves.append((copy_state, (x,y)))
+        # print(available_moves)
         return available_moves
 
-    def check_wall_placement(self, pos, orientation):
+    def is_wall_placement_valid(self, pos, orientation):
 
         if not (0 <= pos[0] < self.size and 0 <= pos[1] < self.size):
             return False
@@ -293,8 +325,8 @@ class GameState:
                 return wall_placements
 
         # possibly already found
-        if self.walls_can_be_placed:
-            return self.walls_can_be_placed
+        # if self.walls_can_be_placed:
+        #     return self.walls_can_be_placed
 
         for i in range(self.rows):
             for j in range(self.cols):
@@ -303,7 +335,7 @@ class GameState:
                 orientation = WallPieceStatus.HORIZONTAL
 
                 # check horizontals
-                if self.check_wall_placement(pos, orientation):
+                if self.is_wall_placement_valid(pos, orientation):
                     copy_state = self.copy()
                     if not copy_state.is_wall_blocking_exit(pos, orientation):
                         if not include_state:
@@ -313,7 +345,7 @@ class GameState:
 
                 orientation = WallPieceStatus.VERTICAL
                 # check verticals
-                if self.check_wall_placement(pos, orientation):
+                if self.is_wall_placement_valid(pos, orientation):
                     copy_state = self.copy()
                     if not copy_state.is_wall_blocking_exit(pos, orientation):
                         if not include_state:
@@ -322,7 +354,7 @@ class GameState:
                             wall_placements.append((copy_state, (*pos, orientation)))
 
         # save for reuse
-        self.walls_can_be_placed = wall_placements
+        # self.walls_can_be_placed = wall_placements
 
         return wall_placements
 

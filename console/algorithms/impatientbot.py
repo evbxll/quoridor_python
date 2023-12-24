@@ -5,7 +5,7 @@ import numpy as np
 
 
 def impatientbot_action(game_state: GameState):
-    move_prob = 0.1
+    move_prob = 0.5
 
     wall_placements = game_state.get_available_wall_placements(False)
     available_moves = game_state.get_available_moves(False)
@@ -20,7 +20,7 @@ def impatientbot_action(game_state: GameState):
 
     # print(chosen_list)
     if chosen_list == available_moves:
-        first_move_prob = 0.95
+        first_move_prob = 0.9
         probs = [first_move_prob] + [(1-first_move_prob)/ (max(len(chosen_list) - 1, 1))] * (len(chosen_list) - 1)
         
         if game_state.player1:

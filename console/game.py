@@ -1,4 +1,4 @@
-from console.states.game_state import GameState, MoveKeyValues, WallKeyValues, WallPieceStatus
+from console.states.game_state import GameState, WallPieceStatus
 from time import time, sleep
 from console.util.color import Color
 from console.algorithms.minimax import minimax
@@ -9,17 +9,29 @@ from console.algorithms.impatientbot import impatientbot_action
 from console.algorithms.monte_carlo_tree_search import SearchNode
 import math
 
+SIZE = 15
+WALLS = 30
+
+MoveKeyValues = "".join([str(i) for i in range(SIZE)])
+WallKeyValues = "".join([chr(ord('a') + i).lower() for i in range(SIZE-1)])
 
 class Game:
-    def __init__(self):
+    def __init__(self, user_sim = False, rounds = 1, verbose = True, sim_delay = 0.5):
 
         self.player_simulation_algorithms = ["randomBot", "randomBot"]
-        self.game_state = GameState()
+        self.game_state = GameState(verbose, SIZE, WALLS)
+        self.is_user_sim = user_sim
         self.algorithms = ["randomBot", "impatientBot"]
         self.execution_times = []
-        self.sim_delay = 0.1
+        self.sim_delay = sim_delay
+        self.rounds = rounds
 
-        self.initialize()
+        if user_sim:
+            self.initialize_sim()
+        else:
+            self.sim_delay = 0.0
+            self.quick_run("randomBot", "impatientBot")
+            
 
     def print_commands(self):
         print(
@@ -30,7 +42,16 @@ class Game:
         print("3. When it's your turn, you can also press " + Color.CYAN + " x " + Color.RESET + " to exit the game.")
         print("4. When it's your turn, you can also type " + Color.CYAN + " help " + Color.RESET + " to print this guide again.")
 
-    def initialize(self):
+    def quick_run(self, bot1, bot2):
+        Game.print_colored_output("### Quick Running rounds ###", Color.CYAN)
+        self.is_user_sim = False
+        self.player_simulation_algorithms[0] = bot1
+        self.player_simulation_algorithms[1] = bot2
+        Game.print_colored_output("Chosen algorithm for player 1 is {0:30}".format(self.player_simulation_algorithms[0].upper()), Color.CYAN)
+        Game.print_colored_output("Chosen algorithm for player 2 is {0:30}".format(self.player_simulation_algorithms[1].upper()), Color.CYAN)
+
+
+    def initialize_sim(self):
         Game.print_colored_output("### WELCOME TO QUORIDOR ###", Color.CYAN)
         print("\n")
         print("First the commands [they are case insensitive]: ")
@@ -39,7 +60,7 @@ class Game:
 
         a = 'N'#input("\nDo you want to play against a computer?[Y/n]: ")
         if a == "Y" or a == "y":
-            self.game_state.is_simulation = False
+            self.is_user_sim = True
 
             print("Choose the second player algorithm: ")
             print("1. randomBot")
@@ -59,7 +80,7 @@ class Game:
                     else:
                         Game.print_colored_output("Illegal input!", Color.RED)
         else:
-            self.game_state.is_simulation = True
+            self.is_user_sim = False
             # print("Choose the players algorithms[first_player, second_player]")
             # print("1. minimax")
             # print("2. minimax with alpha beta pruning")
@@ -178,7 +199,7 @@ class Game:
             index = 1
             maximizer = False
         t1 = time()
-        print("Player {0:1} is thinking...\n".format(player_number))
+        # print("Player {0:1} is thinking...\n".format(player_number))
         action = (0, 0)
         # if self.player_simulation_algorithms[index] == "minimax":
         #     action = self.minimax_agent(maximizer, is_alpha_beta=False)
@@ -202,7 +223,7 @@ class Game:
             if len(action) == 2:
                 self.print_colored_output("Player {} has moved his piece to {}.".format(player_number, action), Color.CYAN)
             else:
-                orientation = "HORIZONTAL" if action[2] == 4 else "VERTICAL"
+                orientation = "HORIZONTAL" if action[2] == WallPieceStatus.HORIZONTAL else "VERTICAL"
                 loc = (chr(ord('a') + action[0]), chr(ord('a') + action[1]))
                 self.print_colored_output("Player {} has placed a {} wall at {}.".format(player_number, orientation, loc), Color.CYAN)
             t2 = time()
@@ -216,7 +237,7 @@ class Game:
     def check_end_state(self):
         if self.game_state.is_end_state():
             winner = self.game_state.get_winner()
-            if not self.game_state.is_simulation:
+            if self.is_user_sim:
                 if winner == "P1":
                     self.print_colored_output("You won!", Color.GREEN)
                 else:
@@ -228,7 +249,7 @@ class Game:
             return False
 
     def play(self):
-        while True:
+        while self.rounds:
             print()
             self.game_state.print_game_stats()
             print("\n")
@@ -237,10 +258,12 @@ class Game:
 
             if self.check_end_state():
                 print("Execution average: ", sum(self.execution_times) / len(self.execution_times))
-                break
+                self.rounds -= 1
+                self.game_state.reinitialize()
+                continue
 
             if self.game_state.player1:
-                if not self.game_state.is_simulation:
+                if self.is_user_sim:
                     self.player1_user()
                 else:
                     res = self.player_simulation(1)
