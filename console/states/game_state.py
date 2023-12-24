@@ -13,12 +13,11 @@ class WallPieceStatus:
     VERTICAL = 2
 
 
-Wallcolor = Color.PINK
+
 
 
 class GameState:
-    def __init__(self, verbose=False, size = 9, walls = 10):
-        self.verbose = verbose
+    def __init__(self, size = 9, walls = 10):
         self.player1 = True
         self.size = size
         self.rows = self.size-1
@@ -62,85 +61,6 @@ class GameState:
         game_state.wallboard = copy(self.wallboard)
         return game_state
 
-    def print_game_stats(self):
-        if not self.verbose:
-            return
-        
-        print(Color.GREEN + "{0:<15}".format("Player 1 walls") + Color.WHITE +
-              "|" + Color.RED + "{0:<15}".format(
-            "Player 2 walls") + Color.RESET,
-              end="|\n")
-        print("{0:-<15}|{1:-<15}".format("", ""), end="|\n")
-        print("{0:<15}|{1:<15}|".format(self.player1_walls_num, self.player2_walls_num))
-
-    def print_board(self):
-        if not self.verbose:
-            return
-
-        # print(self.wallboard)
-
-        for i in range(self.size):
-            if i == 0:
-                print("      {0:<2} ".format(i),
-                      end=Wallcolor + chr(ord('a') + i).lower() + Color.RESET)
-            elif i == self.size - 1:
-                print("  {0:<3}".format(i), end=" ")
-            else:
-                print("  {0:<2} ".format(i),
-                      end=Wallcolor + chr(ord('a') + i).lower() + Color.RESET)
-        print()
-        print()
-
-        for i in range(self.rows + self.size):
-            if i % 2 == 0:
-                print("{0:>2}  ".format(i//2), end="")
-            else:
-                print(Wallcolor + "{0:>2}  ".format(chr(ord('a') + i//2).lower()) + Color.RESET, end="")
-
-            for j in range(self.cols + self.size):
-
-                # (i%2 , j%2):
-                # (0,0) means a cell
-                # (0,1) means a possible ver wall
-                # (1,0) means a possible hor wall
-                # (1,1) means a intersection of walls
-                
-                if i % 2 == 0:
-                    x = i//2
-                    y = j//2
-                    if j%2 == 0:
-                        if np.array_equal(self.player1_pos, [x,y]):
-                            print(Color.GREEN + " {0:2} ".format("P1") + Color.RESET, end="")
-                        elif np.array_equal(self.player2_pos, [x,y]):
-                            print(Color.RED + " {0:2} ".format("P2") + Color.RESET, end="")
-                        else:
-                            print("{0:4}".format(""), end="")
-                    else:
-                        if self.wallboard[min(self.rows-1, x), y] == WallPieceStatus.VERTICAL or self.wallboard[max(0,x-1), y] == WallPieceStatus.VERTICAL:
-                            print(Wallcolor + " \u2503" + Color.RESET, end="")
-                        else:
-                            print(" |", end="")
-                else:
-                    if j%2 == 0:
-                        x = i//2
-                        y = j//2
-                        if self.wallboard[x,min(self.cols-1,y)] == WallPieceStatus.HORIZONTAL or self.wallboard[x, max(0,y-1)] == WallPieceStatus.HORIZONTAL:
-                            line = ""
-                            for k in range(5):
-                                line += "\u2501"
-                            print(Wallcolor + line + Color.RESET, end="")
-                        else:
-                            line = ""
-                            for k in range(5):
-                                line += "\u23AF"
-                            print(line, end="")
-                    else:
-                        if self.wallboard[i//2, j//2] == WallPieceStatus.FREE_WALL:
-                            print("o", end="")
-                        else:
-                            print(Wallcolor + "o" + Color.RESET, end="")        
-            print()
-
     def is_piece_occupied(self, i, j):
         return np.array_equal(self.player1_pos, [i,j]) or np.array_equal(self.player2_pos, [i,j])
 
@@ -178,7 +98,6 @@ class GameState:
             return self.rows - self.player2_pos[0]
 
     def get_child_states_with_moves(self):
-        print('run')
         available_moves = self.get_available_moves(False)
         children = []
         for move in available_moves:

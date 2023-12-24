@@ -8,6 +8,9 @@ from console.algorithms.randombot import randombot_action
 from console.algorithms.impatientbot import impatientbot_action
 from console.algorithms.monte_carlo_tree_search import SearchNode
 import math
+import numpy as np
+
+Wallcolor = Color.PINK
 
 SIZE = 15
 WALLS = 30
@@ -19,7 +22,8 @@ class Game:
     def __init__(self, user_sim = False, rounds = 1, verbose = True, sim_delay = 0.5):
 
         self.player_simulation_algorithms = ["randomBot", "randomBot"]
-        self.game_state = GameState(verbose, SIZE, WALLS)
+        self.game_state = GameState(SIZE, WALLS)
+        self.verbose = verbose
         self.is_user_sim = user_sim
         self.algorithms = ["randomBot", "impatientBot"]
         self.execution_times = []
@@ -251,9 +255,9 @@ class Game:
     def play(self):
         while self.rounds:
             print()
-            self.game_state.print_game_stats()
+            self.print_game_stats()
             print("\n")
-            self.game_state.print_board()
+            self.print_board()
             print()
 
             if self.check_end_state():
@@ -277,6 +281,90 @@ class Game:
                         break
 
             self.game_state.player1 = not self.game_state.player1
+
+    def print_game_stats(self):
+        if not self.verbose:
+            return
+        
+        g = self.game_state
+        
+        print(Color.GREEN + "{0:<15}".format("Player 1 walls") + Color.WHITE +
+              "|" + Color.RED + "{0:<15}".format(
+            "Player 2 walls") + Color.RESET,
+              end="|\n")
+        print("{0:-<15}|{1:-<15}".format("", ""), end="|\n")
+        print("{0:<15}|{1:<15}|".format(g.player1_walls_num, g.player2_walls_num))
+
+
+    def print_board(self):
+        if not self.verbose:
+            return
+        
+        g = self.game_state
+
+        # print(g.wallboard)
+
+        for i in range(g.size):
+            if i == 0:
+                print("      {0:<2} ".format(i),
+                      end=Wallcolor + chr(ord('a') + i).lower() + Color.RESET)
+            elif i == g.size - 1:
+                print("  {0:<3}".format(i), end=" ")
+            else:
+                print("  {0:<2} ".format(i),
+                      end=Wallcolor + chr(ord('a') + i).lower() + Color.RESET)
+        print()
+        print()
+
+        for i in range(g.rows + g.size):
+            if i % 2 == 0:
+                print("{0:>2}  ".format(i//2), end="")
+            else:
+                print(Wallcolor + "{0:>2}  ".format(chr(ord('a') + i//2).lower()) + Color.RESET, end="")
+
+            for j in range(g.cols + g.size):
+
+                # (i%2 , j%2):
+                # (0,0) means a cell
+                # (0,1) means a possible ver wall
+                # (1,0) means a possible hor wall
+                # (1,1) means a intersection of walls
+                
+                if i % 2 == 0:
+                    x = i//2
+                    y = j//2
+                    if j%2 == 0:
+                        if np.array_equal(g.player1_pos, [x,y]):
+                            print(Color.GREEN + " {0:2} ".format("P1") + Color.RESET, end="")
+                        elif np.array_equal(g.player2_pos, [x,y]):
+                            print(Color.RED + " {0:2} ".format("P2") + Color.RESET, end="")
+                        else:
+                            print("{0:4}".format(""), end="")
+                    else:
+                        if g.wallboard[min(g.rows-1, x), y] == WallPieceStatus.VERTICAL or g.wallboard[max(0,x-1), y] == WallPieceStatus.VERTICAL:
+                            print(Wallcolor + " \u2503" + Color.RESET, end="")
+                        else:
+                            print(" |", end="")
+                else:
+                    if j%2 == 0:
+                        x = i//2
+                        y = j//2
+                        if g.wallboard[x,min(g.cols-1,y)] == WallPieceStatus.HORIZONTAL or g.wallboard[x, max(0,y-1)] == WallPieceStatus.HORIZONTAL:
+                            line = ""
+                            for k in range(5):
+                                line += "\u2501"
+                            print(Wallcolor + line + Color.RESET, end="")
+                        else:
+                            line = ""
+                            for k in range(5):
+                                line += "\u23AF"
+                            print(line, end="")
+                    else:
+                        if g.wallboard[i//2, j//2] == WallPieceStatus.FREE_WALL:
+                            print("o", end="")
+                        else:
+                            print(Wallcolor + "o" + Color.RESET, end="")        
+            print()
 
     @staticmethod
     def print_colored_output(text, color):
