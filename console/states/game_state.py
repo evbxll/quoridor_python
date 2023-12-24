@@ -2,19 +2,23 @@ from console.util.wall_direction import WallDirection
 import numpy as np
 from copy import copy
 from console.search.astar import astar
+from console.search.bfs import bfs_check_if_paths_exist
 from console.util.color import Color
 import threading
 
 
 class WallPieceStatus:
     FREE_WALL = 0
-    PLACED_BY_PLAYER_1 = -1
-    PLACED_BY_PLAYER_2 = 1
-    HORIZONTAL = 4
-    VERTICAL = 5
+    HORIZONTAL = 1
+    VERTICAL = 2
 
-MoveKeyValues = "123456789"
-WallKeyValues = "abcdefgh"
+
+SIZE = 9
+WALLS = 30
+
+
+MoveKeyValues = "".join([str(i) for i in range(SIZE)])
+WallKeyValues = "".join([chr(ord('a') + i).lower() for i in range(SIZE-1)])
 
 Wallcolor = Color.PINK
 
@@ -22,19 +26,20 @@ Wallcolor = Color.PINK
 class GameState:
     def __init__(self, is_simulation=False, initialize=True):
         self.is_simulation = is_simulation
-        self.player_one = True
-        self.size = 9
+        self.player1 = True
+        self.size = SIZE
         self.rows = self.size-1
         self.cols = self.size-1
-        self.player_one_walls_num = 10
-        self.player_two_wall_num = 10
+        self.player1_walls_num = WALLS
+        self.player2_walls_num = WALLS
         self.lock = threading.Lock()
+        self.walls_can_be_placed = []
 
         if initialize:
             self.player1_pos = np.array([self.size-1, self.size//2])
             self.player2_pos = np.array([0, self.size//2])
 
-            self.wallboard = np.zeros((self.size, self.size), dtype=int)
+            self.wallboard = np.zeros((self.rows, self.cols), dtype=int)   
             self.set_up_board()
 
     def set_up_board(self):
@@ -55,29 +60,37 @@ class GameState:
             "Player 2 walls") + Color.RESET,
               end="|\n")
         print("{0:-<15}|{1:-<15}".format("", ""), end="|\n")
-        print("{0:<15}|{1:<15}|".format(self.player_one_walls_num, self.player_two_wall_num))
+        print("{0:<15}|{1:<15}|".format(self.player1_walls_num, self.player2_walls_num))
 
     def print_board(self):
 
+        # print(self.wallboard)
+
         for i in range(self.size):
             if i == 0:
-                print("      {0:<2} ".format(i+1),
+                print("      {0:<2} ".format(i),
                       end=Wallcolor + chr(ord('a') + i).lower() + Color.RESET)
             elif i == self.size - 1:
-                print("  {0:<3}".format(i+1), end=" ")
+                print("  {0:<3}".format(i), end=" ")
             else:
-                print("  {0:<2} ".format(i+1),
+                print("  {0:<2} ".format(i),
                       end=Wallcolor + chr(ord('a') + i).lower() + Color.RESET)
         print()
         print()
 
         for i in range(self.rows + self.size):
             if i % 2 == 0:
-                print("{0:>2}  ".format(i//2+1), end="")
+                print("{0:>2}  ".format(i//2), end="")
             else:
                 print(Wallcolor + "{0:>2}  ".format(chr(ord('a') + i//2).lower()) + Color.RESET, end="")
 
             for j in range(self.cols + self.size):
+
+                # (i%2 , j%2):
+                # (0,0) means a cell
+                # (0,1) means a possible ver wall
+                # (1,0) means a possible hor wall
+                # (1,1) means a intersection of walls
                 
                 if i % 2 == 0:
                     x = i//2
@@ -90,7 +103,7 @@ class GameState:
                         else:
                             print("{0:4}".format(""), end="")
                     else:
-                        if self.wallboard[x, y] == WallPieceStatus.VERTICAL or self.wallboard[max(0,x-1), y] == WallPieceStatus.VERTICAL:
+                        if self.wallboard[min(self.rows-1, x), y] == WallPieceStatus.VERTICAL or self.wallboard[max(0,x-1), y] == WallPieceStatus.VERTICAL:
                             print(Wallcolor + " \u2503" + Color.RESET, end="")
                         else:
                             print(" |", end="")
@@ -98,7 +111,7 @@ class GameState:
                     if j%2 == 0:
                         x = i//2
                         y = j//2
-                        if self.wallboard[x,y] == WallPieceStatus.HORIZONTAL or self.wallboard[x, max(0,y-1)] == WallPieceStatus.HORIZONTAL:
+                        if self.wallboard[x,min(self.cols-1,y)] == WallPieceStatus.HORIZONTAL or self.wallboard[x, max(0,y-1)] == WallPieceStatus.HORIZONTAL:
                             line = ""
                             for k in range(5):
                                 line += "\u2501"
@@ -121,38 +134,50 @@ class GameState:
     def is_not_piece_occupied(self, i, j):
         return not self.is_piece_occupied(i, j)
 
-    def is_wall_occupied(self, i, j):
-        # REWRITE THIS
-        return self.board[i,j] == WallPieceStatus.PLACED_BY_PLAYER_1 or self.board[i,j] == WallPieceStatus.PLACED_BY_PLAYER_2
+    def is_wall_blocking_path(self, pos, new_pos):
+        # move sideways (check for vertical wall)
+        if pos[0] == new_pos[0]:
+            y = min(pos[1], new_pos[1], self.cols-1)
+            if self.wallboard[min(self.rows-1, pos[0]), y] == WallPieceStatus.VERTICAL \
+            or self.wallboard[max(0, pos[0]-1), y] == WallPieceStatus.VERTICAL: 
+                return True
+        # move vertical (check for horizontal wall)
+        elif pos[1] == new_pos[1]:
+            x = min(pos[0], new_pos[0], self.rows-1)
+            if self.wallboard[x, min(self.cols-1, pos[1])] == WallPieceStatus.HORIZONTAL \
+            or self.wallboard[x, max(0, pos[1]-1)] == WallPieceStatus.HORIZONTAL: 
+                return True
+        return False
 
-    def is_not_wall_occupied(self, i, j):
-        return not self.is_wall_occupied(i, j)
+    def is_not_wall_blocking_path(self, pos, new_pos):
+        return not self.is_wall_blocking_path(pos, new_pos)
 
     def is_jump(self, move):
-        if self.player_one:
-            return abs(self.player1_pos[0] - move[0]) == 2
+        if self.player1:
+            return abs(self.player1_pos[0] - move[0]) == 2 or abs(self.player1_pos[1] - move[1]) == 2
         else:
-            return abs(self.player2_pos[0] - move[0]) == 2
+            return abs(self.player2_pos[0] - move[0]) == 2 or abs(self.player2_pos[1] - move[1]) == 2
 
     def is_diagonal(self, move):
-        if self.player_one:
+        if self.player1:
             return abs(self.player1_pos[0] - move[0]) == 1 and abs(self.player1_pos[1] - move[1]) == 1
         else:
             return abs(self.player2_pos[0] - move[0]) == 1 and abs(self.player2_pos[1] - move[1]) == 1
 
     def is_goal_state(self):
-        if self.player_one:
+        if self.player1:
             return self.player1_pos[0] == 0
         else:
-            return self.player2_pos[0] == self.size-1
+            return self.player2_pos[0] == self.rows
 
     def distance_to_goal(self):
-        if self.player_one:
+        if self.player1:
             return self.player1_pos[0]
         else:
-            return (self.size - 1) - self.player2_pos[0]
+            return self.rows - self.player2_pos[0]
 
     def get_child_states_with_moves(self):
+        print('run')
         available_moves = self.get_available_moves(False)
         children = []
         for move in available_moves:
@@ -163,7 +188,7 @@ class GameState:
                 cost = 500
             elif self.is_diagonal(move):
                 cost = 500
-            if child.player_one:
+            if child.player1:
                 pos = child.player1_pos
             else:
                 pos = child.player2_pos
@@ -172,7 +197,7 @@ class GameState:
             children.append((child, simplified_child_state))
         return children
 
-    def get_all_child_states(self, player_one_maximizer, include_state=True):
+    def get_all_child_states(self, player1_maximizer, include_state=True):
 
         children = []
         available_moves = self.get_available_moves(include_state)
@@ -180,478 +205,127 @@ class GameState:
             children.append(move)
 
         available_wall_placements = []
-        if not self.player_one and not player_one_maximizer:
-            available_wall_placements = self.get_available_wall_placements_for_player_two(include_state)
+        if not self.player1 and not player1_maximizer:
+            available_wall_placements = self.get_available_wall_placements(include_state)
 
-        if self.player_one and player_one_maximizer:
-            available_wall_placements = self.get_available_wall_placements_for_player_one(include_state)
+        if self.player1 and player1_maximizer:
+            available_wall_placements = self.get_available_wall_placements(include_state)
 
         for wall_placement in available_wall_placements:
             children.append(wall_placement)
 
         return children
-
-    def get_north_pos(self, include_state=True):
-        if self.player_one:
-            i, j = self.player1_pos
-            move = -2
-            wall = -1
+    
+    def check_valid_move(self, new_pos):
+        # Out of bounds
+        if not (0 <= new_pos[0] < self.size and 0 <= new_pos[1] < self.size):
+            return False
+        
+        if self.player1:
+            pos = self.player1_pos
+            other_player = self.player2_pos
         else:
-            i, j = self.player2_pos
-            move = 2
-            wall = 1
+            pos = self.player2_pos
+            other_player = self.player1_pos
+        
+        if np.array_equal(other_player, new_pos):
+                return False
 
-        if 0 <= i + move <= 16 and 0 <= i + wall <= 16:
-            if self.is_not_piece_occupied(i + move, j) and self.is_not_wall_occupied(i + wall, j):
-                position = (i + move, j)
-                if include_state:
-                    copy_state = self.copy()
-                    copy_state.move_piece(position)
-                    copy_state.player_one = not self.player_one
-                    return copy_state, position
+        # no wall between player and new_pos
+        if self.is_wall_blocking_path(pos, new_pos):
+            return False
+
+        return True
+
+   
+    def get_available_moves(self, include_state=False):
+        available_moves = []
+                    
+
+        dirs = [(1,0), (0,1), (-1,0), (0,-1)]
+        if self.player1:
+            pos = self.player1_pos
+        else:
+            pos = self.player2_pos
+        
+        for x,y in [(pos[0]+i, pos[1] + j) for (i,j) in dirs]:
+            if self.check_valid_move((x,y)):
+                copy_state = self.copy()
+                if not include_state:
+                    available_moves.append((x,y))
                 else:
-                    return position
-            else:
-                return None
-        else:
-            return None
+                    available_moves.append((copy_state, (x,y)))
+        
+        return available_moves
 
-    def get_south_pos(self, include_state=True):
+    def check_wall_placement(self, pos, orientation):
 
-        if self.player_one:
-            i, j = self.player1_pos
-            move_x = 2
-            wall_x = 1
-        else:
-            i, j = self.player2_pos
-            move_x = -2
-            wall_x = -1
+        if not (0 <= pos[0] < self.size and 0 <= pos[1] < self.size):
+            return False
+        
+        if self.wallboard[pos[0], pos[1]] != WallPieceStatus.FREE_WALL:
+            return False
 
-        if 0 <= i + move_x <= 16 and 0 <= i + wall_x <= 16:
-            if self.is_not_wall_occupied(i + wall_x, j) and self.is_not_piece_occupied(i + move_x, j):
-                position = (i + move_x, j)
-                if include_state:
-                    copy_state = self.copy()
-                    copy_state.move_piece(position)
-                    copy_state.player_one = not self.player_one
-                    return copy_state, position
-                else:
-                    return position
-            else:
-                return None
-        else:
-            return None
+        if orientation == WallPieceStatus.HORIZONTAL:
+            if pos[1] > 0 and self.wallboard[pos[0], pos[1]-1] == WallPieceStatus.HORIZONTAL:
+                return False
+            if pos[1] < self.cols-1 and self.wallboard[pos[0], pos[1]+1] == WallPieceStatus.HORIZONTAL:
+                return False
+        if orientation == WallPieceStatus.VERTICAL:
+            if pos[0] > 0 and self.wallboard[pos[0]-1, pos[1]] == WallPieceStatus.VERTICAL:
+                return False
+            if pos[0] < self.rows-1 and self.wallboard[pos[0]+1, pos[1]] == WallPieceStatus.VERTICAL:
+                return False
+            
+        return True
 
-    def get_west_pos(self, include_state=True):
+    def is_wall_blocking_exit(self, pos, orientation):
+        cop = self.copy()
+        cop.place_wall((*pos, orientation))
+        return not bfs_check_if_paths_exist(cop)
 
-        if self.player_one:
-            i, j = self.player1_pos
-            move_y = -2
-            wall_y = -1
-        else:
-            i, j = self.player2_pos
-            move_y = 2
-            wall_y = 1
-
-        if 0 <= j + move_y <= 16 and 0 <= j + wall_y <= 16:
-            if self.is_not_piece_occupied(i, j + move_y) and self.is_not_wall_occupied(i, j + wall_y):
-                position = (i, j + move_y)
-                if include_state:
-                    copy_state = self.copy()
-                    copy_state.move_piece(position)
-                    copy_state.player_one = not self.player_one
-                    return copy_state, position
-                else:
-                    return position
-            else:
-                return None
-        else:
-            return None
-
-    def get_east_pos(self, include_state=True):
-
-        if self.player_one:
-            i, j = self.player1_pos
-            move_y = 2
-            wall_y = 1
-        else:
-            i, j = self.player2_pos
-            move_y = -2
-            wall_y = -1
-
-        if 0 <= j + move_y <= 16 and 0 <= j + wall_y <= 16:
-            if self.is_not_piece_occupied(i, j + move_y) and self.is_not_wall_occupied(i, j + wall_y):
-                position = (i, j + move_y)
-                if include_state:
-                    copy_state = self.copy()
-                    copy_state.move_piece(position)
-                    copy_state.player_one = not self.player_one
-                    return copy_state, position
-                else:
-                    return position
-            else:
-                return None
-        else:
-            return None
-
-    def get_jump_pos(self, include_state=True):
-
-        if self.player_one:
-            i, j = self.player1_pos
-            jump = -4
-            move = -2
-            wall1 = -1
-            wall2 = -3
-        else:
-            i, j = self.player2_pos
-            jump = 4
-            move = 2
-            wall1 = 1
-            wall2 = 3
-
-        if 0 <= i + jump <= 16:
-            if self.is_not_wall_occupied(i + wall1, j) and self.is_piece_occupied(i + move, j) and \
-                    self.is_not_wall_occupied(i + wall2, j):
-                position = (i + jump, j)
-                if include_state:
-                    copy_state = self.copy()
-                    copy_state.move_piece(position)
-                    copy_state.player_one = not self.player_one
-                    return copy_state, position
-                else:
-                    return position
-            else:
-                return None
-        else:
-            return None
-
-    def get_northwest_pos(self, include_state=True):
-
-        if self.player_one:
-            i, j = self.player1_pos
-            move_x = -2
-            move_y = -2
-            wall_x = -1
-            wall_y = -1
-            occupied_x = -2
-            occupied_wall = -3
-        else:
-            i, j = self.player2_pos
-            move_x = 2
-            move_y = 2
-            wall_x = 1
-            wall_y = 1
-            occupied_x = 2
-            occupied_wall = 3
-
-        if 0 <= i + move_x <= 16 and \
-                0 <= j + move_y <= 16 and \
-                0 <= i + wall_x <= 16 and \
-                0 <= j + wall_y <= 16 and \
-                0 <= i + occupied_x <= 16 and \
-                0 <= i + occupied_wall <= 16:
-            if self.is_not_wall_occupied(i + wall_x, j + wall_y) and \
-                    self.is_piece_occupied(i + occupied_x, j) and \
-                    self.is_wall_occupied(i + occupied_wall, j):
-                position = (i + move_x, j + move_y)
-                if include_state:
-                    copy_state = self.copy()
-                    copy_state.move_piece(position)
-                    copy_state.player_one = not self.player_one
-                    return copy_state, position
-                else:
-                    return position
-            else:
-                return None
-        else:
-            return None
-
-    def get_northeast_pos(self, include_state=True):
-
-        if self.player_one:
-            i, j = self.player1_pos
-            move_x = -2
-            move_y = 2
-            wall_x = -1
-            wall_y = 1
-            occupied_x = -2
-            occupied_wall = -3
-        else:
-            i, j = self.player2_pos
-            move_x = 2
-            move_y = -2
-            wall_x = 1
-            wall_y = -1
-            occupied_x = 2
-            occupied_wall = 3
-
-        if 0 <= i + move_x <= 16 and \
-                0 <= j + move_y <= 16 and \
-                0 <= i + wall_x <= 16 and \
-                0 <= j + wall_y <= 16 and \
-                0 <= i + occupied_x <= 16 and \
-                0 <= i + occupied_wall <= 16:
-            if self.is_not_wall_occupied(i + wall_x, j + wall_y) and \
-                    self.is_piece_occupied(i + occupied_x, j) and \
-                    self.is_wall_occupied(i + occupied_wall, j):
-                position = (i + move_x, j + move_y)
-                if include_state:
-                    copy_state = self.copy()
-                    copy_state.move_piece(position)
-                    copy_state.player_one = not self.player_one
-                    return copy_state, position
-                else:
-                    return position
-            else:
-                return None
-        else:
-            return None
-
-    def get_available_moves(self, include_state=True):
-        north = self.get_north_pos(include_state)
-        south = self.get_south_pos(include_state)
-        east = self.get_east_pos(include_state)
-        west = self.get_west_pos(include_state)
-        jump = self.get_jump_pos(include_state)
-        north_east = self.get_northeast_pos(include_state)
-        north_west = self.get_northwest_pos(include_state)
-
-        array = []
-
-        if south is not None:
-            array.append(south)
-        if east is not None:
-            array.append(east)
-        if west is not None:
-            array.append(west)
-        if jump is not None:
-            array.append(jump)
-        if north_east is not None:
-            array.append(north_east)
-        if north_west is not None:
-            array.append(north_west)
-        if north is not None:
-            array.append(north)
-        return array
-
-    def check_wall_placement(self, starting_pos, direction):
-
-        if self.player_one and self.player_one_walls_num == 0:
-            return False, np.array([starting_pos[0], starting_pos[1], -1, -1, -1, -1])
-        elif not self.player_one and self.player_two_wall_num == 0:
-            return False, np.array([starting_pos[0], starting_pos[1], -1, -1, -1, -1])
-
-        if starting_pos[0] % 2 == 1 and starting_pos[1] == 1:
-            return False, np.array([starting_pos[0], starting_pos[1], -1, -1, -1, -1])
-
-        if self.is_wall_occupied(starting_pos[0], starting_pos[1]):
-            return False, np.array([starting_pos[0], starting_pos[1], -1, -1, -1, -1])
-
-        if direction == WallDirection.NORTH:
-            if starting_pos[1] % 2 == 0:
-                return False, np.array([starting_pos[0], starting_pos[1], -1, -1, -1, -1])
-            else:
-                second_piece_x = starting_pos[0] - 2
-                second_piece_y = starting_pos[1]
-                third_piece_x = starting_pos[0] - 1
-                third_piece_y = starting_pos[1]
-        elif direction == WallDirection.SOUTH:
-            if starting_pos[1] % 2 == 0:
-                return False, np.array([starting_pos[0], starting_pos[1], -1, -1, -1, -1])
-            else:
-                second_piece_x = starting_pos[0] + 2
-                second_piece_y = starting_pos[1]
-                third_piece_x = starting_pos[0] + 1
-                third_piece_y = starting_pos[1]
-        elif direction == WallDirection.EAST:
-            if starting_pos[0] % 2 == 0:
-                return False, np.array([starting_pos[0], starting_pos[1], -1, -1, -1, -1])
-            else:
-                second_piece_x = starting_pos[0]
-                second_piece_y = starting_pos[1] + 2
-                third_piece_x = starting_pos[0]
-                third_piece_y = starting_pos[1] + 1
-
-        else:  # WallDirection.WEST
-            if starting_pos[0] % 2 == 0:
-                return False, np.array([starting_pos[0], starting_pos[1], -1, -1, -1, -1])
-            else:
-                second_piece_x = starting_pos[0]
-                second_piece_y = starting_pos[1] - 2
-                third_piece_x = starting_pos[0]
-                third_piece_y = starting_pos[1] - 1
-
-        if not 0 <= starting_pos[0] <= 16 and not 0 <= starting_pos[1] <= 16 \
-                and not 0 <= second_piece_x <= 16 and not 0 <= second_piece_y <= 16 \
-                and not 0 <= third_piece_x <= 16 and not 0 <= third_piece_y <= 16:
-            return False, np.array([starting_pos[0], starting_pos[1], -1, -1, -1, -1])
-
-        if self.is_wall_occupied(second_piece_x, second_piece_y):
-            return False, np.array([starting_pos[0], starting_pos[1], -1, -1, -1, -1])
-        if self.is_wall_occupied(third_piece_x, third_piece_y):
-            return False, np.array([starting_pos[0], starting_pos[1], -1, -1, -1, -1])
-
-        # check whether this wall blocks the opponent's last remaining path
-        positions = np.array(
-            [starting_pos[0], starting_pos[1], second_piece_x, second_piece_y, third_piece_x, third_piece_y])
-
-        copy_state = copy(self)
-
-        if copy_state.is_wall_blocking(positions, not self.player_one):
-            return False, np.array([starting_pos[0], starting_pos[1], -1, -1, -1, -1])
-
-        return True, positions
-
-    def is_wall_blocking(self, positions, player_one):
-        self.place_wall(positions)
-        self.player_one = player_one
-        return not astar(self, True)
-
-    def get_available_wall_placements_for_player_one(self, include_state=True):
+    def get_available_wall_placements(self, include_state=False):
         wall_placements = []
+        if self.player1:
+            if self.player1_walls_num <= 0:
+                return wall_placements
+        elif self.player2_walls_num <= 0:
+                return wall_placements
 
-        if self.player_one_walls_num == 0:
-            return wall_placements
+        # possibly already found
+        if self.walls_can_be_placed:
+            return self.walls_can_be_placed
 
-        start_row = max(self.player2_pos[0] - 2, 0)
-        end_row = min(self.player2_pos[0] + 3, 16)
-        start_col = max(self.player1_pos[1] - 3, 0)
-        end_col = min(self.player1_pos[1] + 3, 16)
+        for i in range(self.rows):
+            for j in range(self.cols):
 
-        # horizontal
-        end = end_col - 3
-        if end_col == 16:
-            end = end_col + 1
-        start_1 = start_col + 1
-        if start_col == 0:
-            start_1 = start_col
-            end = end_col - 2
-        for i in range(start_row + 1, end_row, 2):
-            for j in range(start_1, end, 2):
-                if self.is_wall_occupied(i, j):
-                    continue
-                second_part_y = j + 2
-                third_part_y = j + 1
-                if not start_col <= second_part_y <= end_col:
-                    continue
-                if not start_col <= third_part_y <= end_col:
-                    continue
-                if self.is_wall_occupied(i, second_part_y):
-                    continue
-                if self.is_wall_occupied(i, third_part_y):
-                    continue
-                positions = (i, j, i, second_part_y, i, third_part_y)
-                if include_state:
+                pos = (i,j)
+                orientation = WallPieceStatus.HORIZONTAL
+
+                # check horizontals
+                if self.check_wall_placement(pos, orientation):
                     copy_state = self.copy()
-                    if not copy_state.is_wall_blocking(positions, not self.player_one):
-                        wall_placements.append((copy_state, positions))
-                else:
-                    wall_placements.append(positions)
-        # vertical
-        start_2 = start_col
-        if start_2 == 0:
-            start_2 = start_col + 1
-        for i in range(start_row, end_row - 3, 2):
-            for j in range(start_2, end_col + 1, 2):
-                if self.is_wall_occupied(i, j):
-                    continue
-                second_part_x = i + 2
-                third_part_x = i + 1
-                if not start_row <= second_part_x <= end_row:
-                    continue
-                if not start_row <= third_part_x <= end_row:
-                    continue
-                if self.is_wall_occupied(second_part_x, j):
-                    continue
-                if self.is_wall_occupied(third_part_x, j):
-                    continue
-                positions = (i, j, second_part_x, j, third_part_x, j)
-                if include_state:
+                    if not copy_state.is_wall_blocking_exit(pos, orientation):
+                        if not include_state:
+                            wall_placements.append((*pos, orientation))
+                        else:
+                            wall_placements.append((copy_state, (*pos, orientation)))
+
+                orientation = WallPieceStatus.VERTICAL
+                # check verticals
+                if self.check_wall_placement(pos, orientation):
                     copy_state = self.copy()
-                    if not copy_state.is_wall_blocking(positions, not self.player_one):
-                        wall_placements.append((copy_state, positions))
-                else:
-                    wall_placements.append(positions)
+                    if not copy_state.is_wall_blocking_exit(pos, orientation):
+                        if not include_state:
+                            wall_placements.append((*pos, orientation))
+                        else:
+                            wall_placements.append((copy_state, (*pos, orientation)))
+
+        # save for reuse
+        self.walls_can_be_placed = wall_placements
 
         return wall_placements
 
-    def get_available_wall_placements_for_player_two(self, include_state=True):
-        wall_placements = []
-
-        if self.player_two_wall_num == 0:
-            return wall_placements
-
-        # TODO: vidi za vertikalne zidove
-
-        start_row = max(self.player1_pos[0] - 3, 0)
-        end_row = min(self.player1_pos[0] + 2, 16)
-        start_col = max(self.player1_pos[1] - 3, 0)
-        end_col = min(self.player1_pos[1] + 3, 16)
-        # horizontal
-        end = end_col - 3
-        if end_col == 16:
-            end = end_col + 1
-        start_1 = start_col + 1
-        if start_col == 0:
-            start_1 = start_col
-            end = end_col - 2
-        for i in range(start_row, end_row, 2):
-            for j in range(start_1, end, 2):
-                if self.is_wall_occupied(i, j):
-                    continue
-                second_part_y = j + 2
-                third_part_y = j + 1
-                if not start_col <= second_part_y <= end_col:
-                    continue
-                if not start_col <= third_part_y <= end_col:
-                    continue
-                if self.is_wall_occupied(i, second_part_y):
-                    continue
-                if self.is_wall_occupied(i, third_part_y):
-                    continue
-                positions = (i, j, i, second_part_y, i, third_part_y)
-                if include_state:
-                    copy_state = self.copy()
-                    if not copy_state.is_wall_blocking(positions, not self.player_one):
-                        wall_placements.append((copy_state, positions))
-                else:
-                    wall_placements.append(positions)
-
-        # vertical
-        start_2 = start_col
-        if start_2 == 0 and start_row != 0:
-            start_2 = start_col + 1
-        if start_2 == 0 and start_row == 0:
-            start_2 = start_col
-        end_1 = end_col + 1
-        if end_col == 16:
-            end_1 = 15
-
-        start_3 = start_row + 1
-        if start_row == 0:
-            start_3 = 0
-        for i in range(start_3, end_row - 3, 2):
-            for j in range(start_2, end_1, 2):
-                if self.is_wall_occupied(i, j):
-                    continue
-                second_part_x = i + 2
-                third_part_x = i + 1
-                if not start_row <= second_part_x <= end_row:
-                    continue
-                if not start_row <= third_part_x <= end_row:
-                    continue
-                if self.is_wall_occupied(second_part_x, j):
-                    continue
-                if self.is_wall_occupied(third_part_x, j):
-                    continue
-                positions = (i, j, second_part_x, j, third_part_x, j)
-                if include_state:
-                    copy_state = self.copy()
-                    if not copy_state.is_wall_blocking(positions, not self.player_one):
-                        wall_placements.append((copy_state, positions))
-                else:
-                    wall_placements.append(positions)
-        return wall_placements
 
     def execute_action(self, action, execute_on_copy=True):
         if execute_on_copy:
@@ -664,39 +338,34 @@ class GameState:
             state.place_wall(action)
 
         if execute_on_copy:
-            state.player_one = not self.player_one
+            state.player1 = not self.player1
         return state
+    
 
-    def place_wall(self, positions):
-        for i in range(0, 5, 2):
-            self.board[positions[i] * self.cols + positions[i + 1]] = BoardPieceStatus.OCCUPIED_WALL
+    def place_wall(self, inp):
+        x, y, orientation = inp
+        pos = x,y
 
-        if self.player_one:
-            self.player_one_walls_num -= 1
+        if self.player1:
+            self.player1_walls_num -= 1
         else:
-            self.player_two_wall_num -= 1
+            self.player2_walls_num -= 1
+
+        self.wallboard[pos[0], pos[1]] = orientation
+        self.walls_can_be_placed = []
+            
 
     def move_piece(self, new_pos):
-        new_i, new_j = new_pos
-
-        if self.player_one:
-            old_i, old_j = self.player1_pos
-            self.player1_pos[0] = new_i
-            self.player1_pos[1] = new_j
-            self.board[new_i * self.cols + new_j] = BoardPieceStatus.OCCUPIED_BY_PLAYER_1
+        if self.player1:
+            self.player1_pos = np.array(new_pos)
         else:
-            old_i, old_j = self.player2_pos
-            self.player2_pos[0] = new_i
-            self.player2_pos[1] = new_j
-            self.board[new_i * self.cols + new_j] = BoardPieceStatus.OCCUPIED_BY_PLAYER_2
-
-        self.board[old_i * self.cols + old_j] = BoardPieceStatus.FREE_PLAYER
+            self.player2_pos = np.array(new_pos)
 
     def is_end_state(self):
-        return self.player1_pos[0] == 0 or self.player2_pos[0] == 16
+        return self.player1_pos[0] == 0 or self.player2_pos[0] == self.size-1
 
-    def game_result(self, player_one_maximizer=False):
-        if player_one_maximizer:
+    def game_result(self, player1_maximizer=False):
+        if player1_maximizer:
             if self.player1_pos[0] == 0:
                 return 1
             else:

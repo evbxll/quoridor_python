@@ -2,14 +2,7 @@
 
 ### Description
 
-You can read the rules of the game [here](https://en.wikipedia.org/wiki/Quoridor).
-
-This project contains bots for the game quoridor written in four different ways:
-
-* minimax
-* minimax with alpha-beta pruning
-* expectimax
-* monte carlo tree search
+[here](https://en.wikipedia.org/wiki/Quoridor).
 
 ### Running the project
 
@@ -59,5 +52,3 @@ starting piece. The `d` represents the direction:
 
 * if you want a vertical wall, the direction can be either `s`(south) or `n`(north)
 * if you want a horizontal wall, the direction can be either `e`(east) or `w`(west)
-
-
