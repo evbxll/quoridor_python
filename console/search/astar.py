@@ -21,6 +21,7 @@ def astar(game_state, heuristic=simple_path_finding_heuristic):
         pos = game_state.player1_pos
     else:
         pos = game_state.player2_pos
+        
     queue.put(PriorityQueueItem(0, [(game_state, ((pos[0], pos[1]), (0, 0), 0))]))
 
     while not queue.empty():
@@ -35,7 +36,7 @@ def astar(game_state, heuristic=simple_path_finding_heuristic):
             return len(final_path[1:])
         if current_simplified_state not in visited:
             visited.add(current_simplified_state)
-            for successor in current_state.get_child_states_with_moves():
+            for successor in current_state.get_child_states(True):
                 if successor[1] not in visited:
                     successor_path = copy(path)
                     successor_path.append(successor)

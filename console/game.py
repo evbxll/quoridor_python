@@ -1,31 +1,33 @@
 from console.states.game_state import GameState, WallPieceStatus
-from time import time, sleep
 from console.util.color import Color
 from console.algorithms.minimax import minimax
 from console.algorithms.minimax_alpha_beta_pruning import minimax_alpha_beta_pruning
-from console.algorithms.expectimax import expectimax
 from console.algorithms.randombot import randombot_action
 from console.algorithms.impatientbot import impatientbot_action
 from console.algorithms.monte_carlo_tree_search import SearchNode
+from console.heuristics.simple_path_finding_heuristic import simple_path_finding_heuristic
+
 import math
 import numpy as np
+from time import time, sleep
+import random
 
 Wallcolor = Color.PINK
 
-SIZE = 15
-WALLS = 30
+SIZE = 9
+WALLS = 10
 
 MoveKeyValues = "".join([str(i) for i in range(SIZE)])
-WallKeyValues = "".join([chr(ord('a') + i).lower() for i in range(SIZE-1)])
+WallKeyValues = "".join([chr(ord('a') + i).upper() for i in range(SIZE-1)])
 
 class Game:
-    def __init__(self, user_sim = False, rounds = 1, verbose = True, sim_delay = 0.5):
+    def __init__(self, user_sim = False, verbose = True, rounds = 1, sim_delay = 0.5):
 
         self.player_simulation_algorithms = ["randomBot", "randomBot"]
         self.game_state = GameState(SIZE, WALLS)
         self.verbose = verbose
         self.is_user_sim = user_sim
-        self.algorithms = ["randomBot", "impatientBot"]
+        self.algorithms = ["randomBot", "impatientBot", "minimax-alpha-beta-pruning", "expectimax"]
         self.execution_times = []
         self.sim_delay = sim_delay
         self.rounds = rounds
@@ -34,7 +36,7 @@ class Game:
             self.initialize_sim()
         else:
             self.sim_delay = 0.0
-            self.quick_run("randomBot", "impatientBot")
+            self.quick_run("expectimax", "expectimax")
             
 
     def print_commands(self):
@@ -48,7 +50,6 @@ class Game:
 
     def quick_run(self, bot1, bot2):
         Game.print_colored_output("### Quick Running rounds ###", Color.CYAN)
-        self.is_user_sim = False
         self.player_simulation_algorithms[0] = bot1
         self.player_simulation_algorithms[1] = bot2
         Game.print_colored_output("Chosen algorithm for player 1 is {0:30}".format(self.player_simulation_algorithms[0].upper()), Color.CYAN)
@@ -62,13 +63,15 @@ class Game:
         self.print_commands()
         print("{0:-<100}".format(""))
 
-        a = 'N'#input("\nDo you want to play against a computer?[Y/n]: ")
+        a = input("\nDo you want to play against a computer?[Y/n]: ")
         if a == "Y" or a == "y":
             self.is_user_sim = True
 
             print("Choose the second player algorithm: ")
             print("1. randomBot")
             print("2. impatientBot")
+            print("3. minimax-alpha-beta-pruning")
+            print("4. expectimax")
             while True:
                 x = input("Choose: ")
                 if not x.isdigit() and x != "x" and x != "X":
@@ -85,14 +88,14 @@ class Game:
                         Game.print_colored_output("Illegal input!", Color.RED)
         else:
             self.is_user_sim = False
-            # print("Choose the players algorithms[first_player, second_player]")
-            # print("1. minimax")
-            # print("2. minimax with alpha beta pruning")
-            # print("3. expectimax")
-            # print("4. monte carlo tree search")
+            print("Choose the players algorithms[first_player, second_player]")
+            print("1. randomBot")
+            print("2. impatientBot")
+            print("3. minimax-alpha-beta-pruning")
+            print("4. expectimax")
             while True:
-                # x = input("Choose: ")
-                x = "1,2"
+                x = input("Choose: ")
+                # x = "1,2"
                 if not len(x.split(",")) == 2 and x != "x" and x != "X":
                     Game.print_colored_output("Illegal input!", Color.RED)
                 elif x == "x" or x == "X":
@@ -109,31 +112,47 @@ class Game:
                         break
                     else:
                         Game.print_colored_output("Illegal input!", Color.RED)
-
+        print(self.player_simulation_algorithms)
     def choose_action(self, action):
         if len(action) == 2:
             self.game_state.move_piece(action)
         else:
             self.game_state.place_wall(action)
         return action
+    
+    def choose_best_from_actions(self, d):
+        if len(d.keys()) == 0:
+            return None
 
-    # def minimax_agent(self, player1_minimax, is_alpha_beta):
-    #     d = {}
-    #     for child in self.game_state.get_all_child_states(player1_minimax):
-    #         if not is_alpha_beta:
-    #             value = minimax(child[0], 3, maximizing_player=False, player1_minimax=player1_minimax)
-    #         else:
-    #             value = minimax_alpha_beta_pruning(child[0], 3, -math.inf, math.inf, maximizing_player=False,
-    #                                                player1_minimax=player1_minimax)
-    #         d[value] = child
-    #     return self.choose_action(d)
+        max_value = max(d.values())
 
-    # def expectimax_agent(self, player1_maximizer):
-    #     d = {}
-    #     for child in self.game_state.get_all_child_states(player1_maximizer):
-    #         value = expectimax(child[0], 2, False, player1_maximizer)
-    #         d[value] = child
-    #     return self.choose_action(d)
+        top_actions = [action for action, value in d.items() if value == max_value]
+        # print(d)
+        #print(top_actions)
+        best_action = random.choice(top_actions)
+
+        if len(best_action) == 2:
+            self.game_state.move_piece(best_action)
+        else:
+            self.game_state.place_wall(best_action)
+        return best_action
+
+    def minimax_agent(self, is_player1_minimax, depth = 1):
+        d = {}
+        for child, move in self.game_state.get_all_child_states(True):
+            # print(move, end='')
+            value = minimax_alpha_beta_pruning(child, depth, -math.inf, math.inf, is_player1_minimax)
+            d[move] = value
+        return self.choose_best_from_actions(d)
+
+
+    def expectimax_agent(self, is_player_1_minimax):
+        d = {}
+        for child, move in self.game_state.get_all_child_states(True):
+            flip = -1 if is_player_1_minimax else 1
+            value = flip*simple_path_finding_heuristic(child)
+            d[move] = value
+        return self.choose_best_from_actions(d)
 
     def randombot_agent(self):
         action = randombot_action(self.game_state)
@@ -184,39 +203,36 @@ class Game:
 
                             x_int = ord(x_string) - ord('a')
                             y_int = ord(y_string) - ord('a')
-                            is_placement_valid, coords = self.game_state.check_wall_placement((x_int, y_int),
-                                                                                              orientation)
+                            is_placement_valid = self.game_state.is_wall_placement_valid((x_int, y_int),orientation) and not self.game_state.is_wall_blocking_exit((x_int, y_int), orientation)
                             if not is_placement_valid:
                                 Game.print_colored_output("Illegal wall placement!", Color.RED)
                             else:
-                                self.game_state.place_wall(coords)
+                                self.game_state.place_wall((x_int, y_int, orientation))
                                 break
 
                 else:
                     Game.print_colored_output("Illegal command!", Color.RED)
 
-    def player_simulation(self, player_number):
-        if player_number == 1:
-            index = 0
-            maximizer = True
-        else:
-            index = 1
-            maximizer = False
+    def player_simulation(self):
+        index = 1*(not self.game_state.player1)
+        player_number = index + 1
+
         t1 = time()
         # print("Player {0:1} is thinking...\n".format(player_number))
         action = (0, 0)
         # if self.player_simulation_algorithms[index] == "minimax":
         #     action = self.minimax_agent(maximizer, is_alpha_beta=False)
-        # elif self.player_simulation_algorithms[index] == "minimax-alpha-beta-pruning":
-        #     action = self.minimax_agent(maximizer, is_alpha_beta=True)
-        # elif self.player_simulation_algorithms[index] == "expectimax":
-        #     action = self.expectimax_agent(maximizer)
+        print(self.game_state.player1)
+        if self.player_simulation_algorithms[index] == "minimax-alpha-beta-pruning":
+            action = self.minimax_agent(self.game_state.player1)
+        elif self.player_simulation_algorithms[index] == "expectimax":
+            action = self.expectimax_agent(self.game_state.player1)
         # elif self.player_simulation_algorithms[index] == "monte-carlo-tree-search":
         #     start = SearchNode(state=self.game_state, player1_maximizer=maximizer)
         #     selected_node = start.best_action()
         #     action = selected_node.parent_action
         #     self.game_state.execute_action(action, False)
-        if self.player_simulation_algorithms[index] == "randomBot":
+        elif self.player_simulation_algorithms[index] == "randomBot":
             action = self.randombot_agent()
         elif self.player_simulation_algorithms[index] == "impatientBot":
             action = self.impatientbot_agent()
@@ -270,12 +286,12 @@ class Game:
                 if self.is_user_sim:
                     self.player1_user()
                 else:
-                    res = self.player_simulation(1)
+                    res = self.player_simulation()
                     sleep(self.sim_delay)
                     if not res:
                         break
             else:
-                res = self.player_simulation(2)
+                res = self.player_simulation()
                 sleep(self.sim_delay)
                 if not res:
                         break

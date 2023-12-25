@@ -1,5 +1,6 @@
+from console.search.bfs_to_exit import bfs_shortest_to_exit
+
 def simple_path_finding_heuristic(game_state):
-    if game_state.player1:
-        return 100 * abs(game_state.player1_pos[0])
-    else:
-        return 100 * (abs(game_state.player2_pos[0] - 16))
+    p1, p2 = bfs_shortest_to_exit(game_state)
+    ev = p1 - p2
+    return ev

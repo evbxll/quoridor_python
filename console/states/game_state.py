@@ -2,7 +2,7 @@ from console.util.wall_direction import WallDirection
 import numpy as np
 from copy import copy
 from console.search.astar import astar
-from console.search.bfs import bfs_check_if_paths_exist
+from console.search.dfs_check_exit import dfs_check_if_exit_paths_exist
 from console.util.color import Color
 import threading
 
@@ -61,12 +61,6 @@ class GameState:
         game_state.wallboard = copy(self.wallboard)
         return game_state
 
-    def is_piece_occupied(self, i, j):
-        return np.array_equal(self.player1_pos, [i,j]) or np.array_equal(self.player2_pos, [i,j])
-
-    def is_not_piece_occupied(self, i, j):
-        return not self.is_piece_occupied(i, j)
-
     def is_wall_blocking_path(self, pos, new_pos):
         # move sideways (check for vertical wall)
         if pos[0] == new_pos[0]:
@@ -82,9 +76,6 @@ class GameState:
                 return True
         return False
 
-    def is_not_wall_blocking_path(self, pos, new_pos):
-        return not self.is_wall_blocking_path(pos, new_pos)
-
     def is_goal_state(self):
         if self.player1:
             return self.player1_pos[0] == 0
@@ -96,47 +87,19 @@ class GameState:
             return self.player1_pos[0]
         else:
             return self.rows - self.player2_pos[0]
+        
+    def is_jump(self, new_pos):
+        if self.player1:
+            pos = self.player1_pos
+        else:
+            pos = self.player2_pos
 
-    def get_child_states_with_moves(self):
-        available_moves = self.get_available_moves(False)
-        children = []
-        for move in available_moves:
-            child = self.copy()
-            child.move_piece(move)
-            cost = 1000
-            if self.is_jump(move):
-                cost = 500
-            elif self.is_diagonal(move):
-                cost = 500
-            if child.player1:
-                pos = child.player1_pos
-            else:
-                pos = child.player2_pos
-            simplified_child_state = ((pos[0], pos[1]), (move[0], move[1]), cost)
+        x_diff = abs(new_pos[0] - pos[0])
+        y_diff = abs(new_pos[1] - pos[1])
+        
+        return (x_diff, y_diff) in [(2,0), (0,2), (1,1)]
 
-            children.append((child, simplified_child_state))
-        return children
-
-    def get_all_child_states(self, player1_maximizer, include_state=True):
-
-        children = []
-        available_moves = self.get_available_moves(include_state)
-        for move in available_moves:
-            children.append(move)
-
-        available_wall_placements = []
-        if not self.player1 and not player1_maximizer:
-            available_wall_placements = self.get_available_wall_placements(include_state)
-
-        if self.player1 and player1_maximizer:
-            available_wall_placements = self.get_available_wall_placements(include_state)
-
-        for wall_placement in available_wall_placements:
-            children.append(wall_placement)
-
-        return children
-    
-    def check_valid_move(self, pos, new_pos):
+    def is_valid_move(self, pos, new_pos):
         # Out of bounds
         if not (0 <= new_pos[0] < self.size and 0 <= new_pos[1] < self.size):
             return False
@@ -147,6 +110,27 @@ class GameState:
 
         return True
 
+    def get_all_child_states(self, include_move = False):
+
+        children = []
+        available_moves = self.get_available_moves(True)
+        for child, move in available_moves:
+            if not include_move:
+                children.append(child)
+            else:
+                children.append((child, move))
+
+        available_wall_placements = []
+        available_wall_placements = self.get_available_wall_placements(True)
+
+        for child, wall_placement in available_wall_placements:
+            if not include_move:
+                children.append(child)
+            else:
+                children.append((child, wall_placement))
+
+        return children
+    
    
     def get_available_moves(self, include_state=False):
         available_moves = []
@@ -162,12 +146,13 @@ class GameState:
         
         #standard moves
         for x,y in [(pos[0]+i, pos[1] + j) for (i,j) in dirs]:
-            if self.check_valid_move(pos, (x,y)) and not np.array_equal((x,y), otherpos):
-                copy_state = self.copy()
+            if self.is_valid_move(pos, (x,y)) and not np.array_equal((x,y), otherpos):
                 if not include_state:
                     available_moves.append((x,y))
                 else:
-                    available_moves.append((copy_state, (x,y)))
+                    child = self.copy()
+                    child.move_piece((x,y))
+                    available_moves.append((child, (x,y)))
         
         # hor jump
         x_diff = abs(otherpos[0] - pos[0])
@@ -180,32 +165,35 @@ class GameState:
             y = otherpos[1] + y_dir
 
             
-            if self.check_valid_move(pos, otherpos):
+            if self.is_valid_move(pos, otherpos):
                 # vert or hor jump
-                if self.check_valid_move(otherpos, (x,y)):
-                    copy_state = self.copy()
+                if self.is_valid_move(otherpos, (x,y)):
                     if not include_state:
                         available_moves.append((x,y))
                     else:
-                        available_moves.append((copy_state, (x,y)))  
+                        child = self.copy()
+                        child.move_piece((x,y))
+                        available_moves.append((child, (x,y)))  
 
                 # diag jump
-                if x_dir == 0:
+                elif x_dir == 0:
                     for x,y in [(otherpos[0]+i, otherpos[1]) for i in [1,-1]]:
-                        if self.check_valid_move(otherpos, (x,y)):
-                            copy_state = self.copy()
+                        if self.is_valid_move(otherpos, (x,y)):
                             if not include_state:
                                 available_moves.append((x,y))
                             else:
-                                available_moves.append((copy_state, (x,y)))
-                if y_dir == 0:
+                                child = self.copy()
+                                child.move_piece((x,y))
+                                available_moves.append((child, (x,y)))
+                elif y_dir == 0:
                     for x,y in [(otherpos[0], otherpos[1]+i) for i in [1,-1]]:
-                        if self.check_valid_move(otherpos, (x,y)):
-                            copy_state = self.copy()
+                        if self.is_valid_move(otherpos, (x,y)):
                             if not include_state:
                                 available_moves.append((x,y))
                             else:
-                                available_moves.append((copy_state, (x,y)))
+                                child = self.copy()
+                                child.move_piece((x,y))
+                                available_moves.append((child, (x,y)))
         # print(available_moves)
         return available_moves
 
@@ -232,8 +220,8 @@ class GameState:
 
     def is_wall_blocking_exit(self, pos, orientation):
         cop = self.copy()
-        cop.place_wall((*pos, orientation))
-        return not bfs_check_if_paths_exist(cop)
+        cop.place_wall((*pos, orientation), False)
+        return not dfs_check_if_exit_paths_exist(cop)
 
     def get_available_wall_placements(self, include_state=False):
         wall_placements = []
@@ -255,21 +243,23 @@ class GameState:
 
                 # check horizontals
                 if self.is_wall_placement_valid(pos, orientation):
-                    copy_state = self.copy()
-                    if not copy_state.is_wall_blocking_exit(pos, orientation):
+                    if not self.is_wall_blocking_exit(pos, orientation):
                         if not include_state:
                             wall_placements.append((*pos, orientation))
                         else:
+                            copy_state = self.copy()
+                            copy_state.place_wall((*pos, orientation), False)
                             wall_placements.append((copy_state, (*pos, orientation)))
 
                 orientation = WallPieceStatus.VERTICAL
                 # check verticals
                 if self.is_wall_placement_valid(pos, orientation):
-                    copy_state = self.copy()
-                    if not copy_state.is_wall_blocking_exit(pos, orientation):
+                    if not self.is_wall_blocking_exit(pos, orientation):
                         if not include_state:
                             wall_placements.append((*pos, orientation))
                         else:
+                            copy_state = self.copy()
+                            copy_state.place_wall((*pos, orientation), False)
                             wall_placements.append((copy_state, (*pos, orientation)))
 
         # save for reuse
@@ -290,12 +280,18 @@ class GameState:
 
         if execute_on_copy:
             state.player1 = not self.player1
+            
         return state
     
 
-    def place_wall(self, inp):
+    def place_wall(self, inp, check_valid = True):
         x, y, orientation = inp
         pos = x,y
+
+        if check_valid:
+            if not self.is_wall_placement_valid(pos, orientation) or self.is_wall_blocking_exit(pos, orientation):
+                print('CRAP', inp)
+                exit(2)
 
         if self.player1:
             self.player1_walls_num -= 1
@@ -307,6 +303,18 @@ class GameState:
             
 
     def move_piece(self, new_pos):
+        
+        if self.player1:
+            pos = self.player1_pos
+            otherpos = self.player2_pos
+        else:
+            pos = self.player2_pos
+            otherpos = self.player1_pos
+
+        if not self.is_valid_move(pos, new_pos) or np.array_equal(new_pos, otherpos):
+            print('CRAP', new_pos)
+            exit(2)
+
         if self.player1:
             self.player1_pos = np.array(new_pos)
         else:

@@ -6,7 +6,7 @@ def state_evaluation_heuristic(game_state: GameState, player_one_maximizer, is_e
     player_one_distance = game_state.player_one_pos[0] // 2
     player_two_distance = (16 - game_state.player_two_pos[0]) // 2
     result = 0
-    # TODO: istestiraj za simulaciju
+    
     if player_one_maximizer:
 
         opponent_path_len, player_path_len = player_two_distance, player_one_distance

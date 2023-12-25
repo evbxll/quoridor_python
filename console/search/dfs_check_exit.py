@@ -5,10 +5,10 @@ from queue import PriorityQueue
 
 dirs = [(1,0), (0,1), (0,-1), (-1,0)]
 
-def bfs_check_if_paths_exist(game_state):
+def dfs_check_if_exit_paths_exist(game_state):
     p1 = dfs_wrapper(game_state, tuple(game_state.player1_pos), -1, 0)
     p2 = dfs_wrapper(game_state, tuple(game_state.player2_pos), 1, game_state.size - 1)
-    
+
     return p1 and p2
     
 def dfs_wrapper(game_state, pos, direc, end_row):
@@ -25,6 +25,10 @@ def dfs_wrapper(game_state, pos, direc, end_row):
                         return True
         return False
 
+    # temp = set()
+    # r = dfs(pos, temp)
+    # if len(temp) > (game_state.size**2)//4:
+    #     print(len(temp))
     return dfs(pos)
 
 
