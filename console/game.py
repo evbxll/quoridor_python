@@ -15,7 +15,7 @@ import random
 Wallcolor = Color.PINK
 
 SIZE = 9
-WALLS = 10
+WALLS = 20
 
 MoveKeyValues = "".join([str(i) for i in range(SIZE)])
 WallKeyValues = "".join([chr(ord('a') + i).upper() for i in range(SIZE-1)])
@@ -31,6 +31,8 @@ class Game:
         self.execution_times = []
         self.sim_delay = sim_delay
         self.rounds = rounds
+        self.wins = [0,0]
+        self.hist = []
 
         if user_sim:
             self.initialize_sim()
@@ -149,8 +151,8 @@ class Game:
     def expectimax_agent(self, is_player_1_minimax):
         d = {}
         for child, move in self.game_state.get_all_child_states(True):
-            flip = -1 if is_player_1_minimax else 1
-            value = flip*simple_path_finding_heuristic(child)
+            eval_func = lambda p1, p2: (2*p2 - p1) if is_player_1_minimax else (3*p1 - 4*p2)
+            value = simple_path_finding_heuristic(child, eval_func)
             d[move] = value
         return self.choose_best_from_actions(d)
 
@@ -218,11 +220,11 @@ class Game:
         player_number = index + 1
 
         t1 = time()
-        # print("Player {0:1} is thinking...\n".format(player_number))
+        print("Player {0:1} is thinking...".format(player_number), end='', flush = True)
         action = (0, 0)
         # if self.player_simulation_algorithms[index] == "minimax":
         #     action = self.minimax_agent(maximizer, is_alpha_beta=False)
-        print(self.game_state.player1)
+        
         if self.player_simulation_algorithms[index] == "minimax-alpha-beta-pruning":
             action = self.minimax_agent(self.game_state.player1)
         elif self.player_simulation_algorithms[index] == "expectimax":
@@ -240,21 +242,22 @@ class Game:
             print('No bot configured')
 
         if action is not None:
+            t2 = time()
+            self.execution_times.append(t2 - t1)
             if len(action) == 2:
-                self.print_colored_output("Player {} has moved his piece to {}.".format(player_number, action), Color.CYAN)
+                self.print_colored_output("Player {} has moved his piece to {}.".format(player_number, action), Color.CYAN, True, '')
             else:
                 orientation = "HORIZONTAL" if action[2] == WallPieceStatus.HORIZONTAL else "VERTICAL"
                 loc = (chr(ord('a') + action[0]), chr(ord('a') + action[1]))
-                self.print_colored_output("Player {} has placed a {} wall at {}.".format(player_number, orientation, loc), Color.CYAN)
-            t2 = time()
-            self.execution_times.append(t2 - t1)
-            self.print_colored_output("It took him " + str(round(t2 - t1, 2)) + " seconds.", Color.CYAN)
+                self.print_colored_output("Player {} has placed a {} wall at {}.".format(player_number, orientation, loc), Color.CYAN, True, '')
+            
+            self.print_colored_output("     This took " + str(round(t2 - t1, 4)) + " seconds.", Color.CYAN, _end = '')
             return True
         else:
             self.print_colored_output("Player {} has no moves left.".format(player_number), Color.CYAN)
             return False
 
-    def check_end_state(self):
+    def is_end_state(self):
         if self.game_state.is_end_state():
             winner = self.game_state.get_winner()
             if self.is_user_sim:
@@ -276,8 +279,10 @@ class Game:
             self.print_board()
             print()
 
-            if self.check_end_state():
+            if self.is_end_state():
                 print("Execution average: ", sum(self.execution_times) / len(self.execution_times))
+                winner_index = 0 if self.game_state.get_winner() == 'P1' else 1
+                self.wins[winner_index] += 1
                 self.rounds -= 1
                 self.game_state.reinitialize()
                 continue
@@ -383,5 +388,8 @@ class Game:
             print()
 
     @staticmethod
-    def print_colored_output(text, color):
-        print(color + text + Color.RESET)
+    def print_colored_output(text, color, wipe=False, _end = '\n'):
+        if wipe:
+            print('\r' + color + text + Color.RESET, end = _end, flush=True)
+        else:
+            print(color + text + Color.RESET, end = _end, flush=True)
