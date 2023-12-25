@@ -15,20 +15,13 @@ terminal and position yourself in the project root directory, and simply run `py
 
 **Note:** All commands are case-insensitive.
 
-When you start the program, you will encounter the following:
 
-![picture](resources/initial-screen.png)
-
-Here, you can choose whether you want to play against a bot or you want to watch two bots play against each other (which
+You can choose whether you want to play against a bot or you want to watch two bots play against each other (which
 I do not recommend).
 
 If you choose to play against a bot, you only choose one algorithm
 
-![picture](resources/algorithms-1.png)
-
 If, however, you choose a simulation, you need to choose algorithms for both bots:
-
-![picture](resources/algorithms-2.png)
 
 If you chose a simulation, you cannot enter any moves, you can just sit and watch. If you chose to play, you will
 control the player one (green P1). Each turn, you can either:
