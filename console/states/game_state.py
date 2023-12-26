@@ -26,7 +26,7 @@ class GameState:
         self.player1_walls_num = walls
         self.player2_walls_num = walls
         self.lock = threading.Lock()
-        self.walls_can_be_placed = []
+        self.saved_wall_placements = []
 
         self.player1_pos = np.array([self.size-1, self.size//2])
         self.player2_pos = np.array([0, self.size//2])
@@ -47,7 +47,7 @@ class GameState:
         self.player1_walls_num = self.walls
         self.player2_walls_num = self.walls
         self.lock = threading.Lock()
-        self.walls_can_be_placed = []
+        self.saved_wall_placements = []
 
     def set_up_board(self):
         for i in range(self.rows):
@@ -59,6 +59,7 @@ class GameState:
         game_state.player1_pos = copy(self.player1_pos)
         game_state.player2_pos = copy(self.player2_pos)
         game_state.wallboard = copy(self.wallboard)
+        game_state.saved_wall_placements = copy(self.saved_wall_placements)
         return game_state
 
     def is_wall_blocking_path(self, pos, new_pos):
@@ -199,7 +200,7 @@ class GameState:
 
     def is_wall_placement_valid(self, pos, orientation):
 
-        if not (0 <= pos[0] < self.size and 0 <= pos[1] < self.size):
+        if not (0 <= pos[0] < self.rows and 0 <= pos[1] < self.cols):
             return False
         
         if self.wallboard[pos[0], pos[1]] != WallPieceStatus.FREE_WALL:
@@ -231,9 +232,17 @@ class GameState:
         elif self.player2_walls_num <= 0:
                 return wall_placements
 
-        # possibly already found
-        # if self.walls_can_be_placed:
-        #     return self.walls_can_be_placed
+        # valid wall placement already known already found
+        if self.saved_wall_placements:
+            if include_state:
+                wall_placements_with_states = []
+                for x,y,orientation in self.saved_wall_placements:
+                    copy_state = self.copy()
+                    copy_state.place_wall((x, y, orientation), False)
+                    wall_placements_with_states.append((copy_state, (x, y, orientation)))
+                return wall_placements_with_states
+            else:
+                return self.saved_wall_placements
 
         for i in range(self.rows):
             for j in range(self.cols):
@@ -263,7 +272,10 @@ class GameState:
                             wall_placements.append((copy_state, (*pos, orientation)))
 
         # save for reuse
-        # self.walls_can_be_placed = wall_placements
+        if include_state:
+            self.saved_wall_placements = [i[1] for i in wall_placements]
+        else:
+            self.saved_wall_placements = wall_placements
 
         return wall_placements
 
@@ -299,7 +311,9 @@ class GameState:
             self.player2_walls_num -= 1
 
         self.wallboard[pos[0], pos[1]] = orientation
-        self.walls_can_be_placed = []
+
+        # reset to empty so that it can be recalculated
+        self.saved_wall_placements = []
             
 
     def move_piece(self, new_pos):
@@ -319,6 +333,23 @@ class GameState:
             self.player1_pos = np.array(new_pos)
         else:
             self.player2_pos = np.array(new_pos)
+
+        wall_placements = self.get_available_wall_placements()
+        for i in [-1, 0]:
+            for j in [-1,0]:
+                w1 = ((new_pos[0] + i, new_pos[1] + j), WallPieceStatus.HORIZONTAL)
+                w2 = ((new_pos[0] + i, new_pos[1] + j), WallPieceStatus.VERTICAL)
+                w3 = ((pos[0] + i, pos[1] + j), WallPieceStatus.HORIZONTAL)
+                w4 = ((pos[0] + i, pos[1] + j), WallPieceStatus.VERTICAL)
+                for w in [w1,w2,w3,w4]:
+                    wall = (*w[0],w[1])
+                    if wall in wall_placements:
+                        wall_placements.remove(wall)
+                    if self.is_wall_placement_valid(*w):
+                        if not self.is_wall_blocking_exit(*w):
+                            wall_placements.append(wall)
+        
+        self.saved_wall_placements = wall_placements
 
     def is_end_state(self):
         return self.player1_pos[0] == 0 or self.player2_pos[0] == self.size-1

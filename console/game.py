@@ -1,6 +1,5 @@
 from console.states.game_state import GameState, WallPieceStatus
 from console.util.color import Color
-from console.algorithms.minimax import minimax
 from console.algorithms.minimax_alpha_beta_pruning import minimax_alpha_beta_pruning
 from console.algorithms.randombot import randombot_action
 from console.algorithms.impatientbot import impatientbot_action
@@ -15,7 +14,7 @@ import random
 Wallcolor = Color.PINK
 
 SIZE = 9
-WALLS = 20
+WALLS = 10
 
 MoveKeyValues = "".join([str(i) for i in range(SIZE)])
 WallKeyValues = "".join([chr(ord('a') + i).upper() for i in range(SIZE-1)])
@@ -28,7 +27,7 @@ class Game:
         self.verbose = verbose
         self.is_user_sim = user_sim
         self.algorithms = ["randomBot", "impatientBot", "minimax-alpha-beta-pruning", "expectimax"]
-        self.execution_times = []
+        self.execution_times = [[],[]]
         self.sim_delay = sim_delay
         self.rounds = rounds
         self.wins = [0,0]
@@ -115,6 +114,8 @@ class Game:
                     else:
                         Game.print_colored_output("Illegal input!", Color.RED)
         print(self.player_simulation_algorithms)
+
+
     def choose_action(self, action):
         if len(action) == 2:
             self.game_state.move_piece(action)
@@ -122,15 +123,17 @@ class Game:
             self.game_state.place_wall(action)
         return action
     
+
     def choose_best_from_actions(self, d):
         if len(d.keys()) == 0:
             return None
 
         max_value = max(d.values())
-
+    
         top_actions = [action for action, value in d.items() if value == max_value]
-        # print(d)
-        #print(top_actions)
+        moves_in_top_actions = [t for t in top_actions if len(t) == 2]
+        if moves_in_top_actions:
+            top_actions = moves_in_top_actions
         best_action = random.choice(top_actions)
 
         if len(best_action) == 2:
@@ -139,21 +142,30 @@ class Game:
             self.game_state.place_wall(best_action)
         return best_action
 
-    def minimax_agent(self, is_player1_minimax, depth = 1):
+
+    def minimax_agent(self, is_player1_minimax, depth = 0):
         d = {}
+        # print()
         for child, move in self.game_state.get_all_child_states(True):
-            # print(move, end='')
-            value = minimax_alpha_beta_pruning(child, depth, -math.inf, math.inf, is_player1_minimax)
+            func = lambda p1, p2: (p2-p1)
+            flip = 1 if is_player1_minimax else -1
+            value = flip*minimax_alpha_beta_pruning(child, depth, -math.inf, math.inf, not is_player1_minimax, func)
+            # print(move, value)
             d[move] = value
+        # print()
         return self.choose_best_from_actions(d)
 
 
-    def expectimax_agent(self, is_player_1_minimax):
+    def expectimax_agent(self, is_player1_minimax):
         d = {}
+        print()
         for child, move in self.game_state.get_all_child_states(True):
-            eval_func = lambda p1, p2: (2*p2 - p1) if is_player_1_minimax else (3*p1 - 4*p2)
-            value = simple_path_finding_heuristic(child, eval_func)
+            func = lambda p1, p2: (3*p2-2*p1) if is_player1_minimax else (2*p2-3*p1)
+            flip = 1 if is_player1_minimax else -1
+            value = flip*simple_path_finding_heuristic(child, func)
+            print(move, value)
             d[move] = value
+        print()
         return self.choose_best_from_actions(d)
 
     def randombot_agent(self):
@@ -243,7 +255,7 @@ class Game:
 
         if action is not None:
             t2 = time()
-            self.execution_times.append(t2 - t1)
+            self.execution_times[index].append(t2 - t1)
             if len(action) == 2:
                 self.print_colored_output("Player {} has moved his piece to {}.".format(player_number, action), Color.CYAN, True, '')
             else:
@@ -280,7 +292,7 @@ class Game:
             print()
 
             if self.is_end_state():
-                print("Execution average: ", sum(self.execution_times) / len(self.execution_times))
+                print("Execution averages: ", [sum(i) / max(1,len(i)) for i in self.execution_times])
                 winner_index = 0 if self.game_state.get_winner() == 'P1' else 1
                 self.wins[winner_index] += 1
                 self.rounds -= 1
