@@ -1,6 +1,7 @@
 from console.util.wall_direction import WallDirection
 import numpy as np
-from copy import copy
+from copy import *
+from time import *
 from console.search.astar import astar
 from console.search.dfs_check_exit import dfs_check_if_exit_paths_exist
 from console.util.color import Color
@@ -59,7 +60,7 @@ class GameState:
         game_state.player1_pos = copy(self.player1_pos)
         game_state.player2_pos = copy(self.player2_pos)
         game_state.wallboard = copy(self.wallboard)
-        game_state.saved_wall_placements = copy(self.saved_wall_placements)
+        game_state.saved_wall_placements = deepcopy(self.saved_wall_placements)
         return game_state
 
     def is_wall_blocking_path(self, pos, new_pos):
@@ -111,7 +112,8 @@ class GameState:
 
         return True
 
-    def get_all_child_states(self, include_move = False):
+        #self.saved_wall_placements = []
+    def get_all_child_states(self, include_move = False, compute_new_wall_placements=True):
 
         children = []
         available_moves = self.get_available_moves(True)
@@ -121,8 +123,7 @@ class GameState:
             else:
                 children.append((child, move))
 
-        available_wall_placements = []
-        available_wall_placements = self.get_available_wall_placements(True)
+        available_wall_placements = self.get_available_wall_placements(True, compute_new_wall_placements)
 
         for child, wall_placement in available_wall_placements:
             if not include_move:
@@ -216,34 +217,48 @@ class GameState:
                 return False
             if pos[0] < self.rows-1 and self.wallboard[pos[0]+1, pos[1]] == WallPieceStatus.VERTICAL:
                 return False
+        
+        if self.is_wall_blocking_exit(pos, orientation):
+            return False
             
         return True
 
     def is_wall_blocking_exit(self, pos, orientation):
-        cop = self.copy()
-        cop.place_wall((*pos, orientation), False)
-        return not dfs_check_if_exit_paths_exist(cop)
+        self.wallboard[pos[0], pos[1]] = orientation
+        exit_blocked = not dfs_check_if_exit_paths_exist(self)
+        self.wallboard[pos[0], pos[1]] = WallPieceStatus.FREE_WALL
+        return exit_blocked
+    
+    def update_available_wall_placements(self):
+        s = time()
+        new_wall_placements = []
+        for i,j,orientation in self.saved_wall_placements:
+            pos = (i,j)
+            if self.is_wall_placement_valid(pos, orientation):
+                new_wall_placements.append((*pos, orientation))
+        #print(s-time())
+        self.saved_wall_placements = new_wall_placements
+        
 
-    def get_available_wall_placements(self, include_state=False):
+    def get_available_wall_placements(self, include_state=False, compute_new_wall_placements=True):
         wall_placements = []
         if self.player1:
             if self.player1_walls_num <= 0:
                 return wall_placements
         elif self.player2_walls_num <= 0:
                 return wall_placements
-
         # valid wall placement already known already found
         if self.saved_wall_placements:
             if include_state:
                 wall_placements_with_states = []
                 for x,y,orientation in self.saved_wall_placements:
                     copy_state = self.copy()
-                    copy_state.place_wall((x, y, orientation), False)
+                    copy_state.place_wall((x, y, orientation), False, compute_new_wall_placements)
                     wall_placements_with_states.append((copy_state, (x, y, orientation)))
                 return wall_placements_with_states
             else:
                 return self.saved_wall_placements
-
+            
         for i in range(self.rows):
             for j in range(self.cols):
 
@@ -252,24 +267,23 @@ class GameState:
 
                 # check horizontals
                 if self.is_wall_placement_valid(pos, orientation):
-                    if not self.is_wall_blocking_exit(pos, orientation):
-                        if not include_state:
-                            wall_placements.append((*pos, orientation))
-                        else:
-                            copy_state = self.copy()
-                            copy_state.place_wall((*pos, orientation), False)
-                            wall_placements.append((copy_state, (*pos, orientation)))
+                    if not include_state:
+                        wall_placements.append((*pos, orientation))
+                    else:
+                        copy_state = self.copy()
+                        copy_state.place_wall((*pos, orientation), False, compute_new_wall_placements)
+                        print('g',copy_state.saved_wall_placements)
+                        wall_placements.append((copy_state, (*pos, orientation)))
 
                 orientation = WallPieceStatus.VERTICAL
                 # check verticals
                 if self.is_wall_placement_valid(pos, orientation):
-                    if not self.is_wall_blocking_exit(pos, orientation):
-                        if not include_state:
-                            wall_placements.append((*pos, orientation))
-                        else:
-                            copy_state = self.copy()
-                            copy_state.place_wall((*pos, orientation), False)
-                            wall_placements.append((copy_state, (*pos, orientation)))
+                    if not include_state:
+                        wall_placements.append((*pos, orientation))
+                    else:
+                        copy_state = self.copy()
+                        copy_state.place_wall((*pos, orientation), False, compute_new_wall_placements)
+                        wall_placements.append((copy_state, (*pos, orientation)))
 
         # save for reuse
         if include_state:
@@ -296,12 +310,12 @@ class GameState:
         return state
     
 
-    def place_wall(self, inp, check_valid = True):
+    def place_wall(self, inp, check_if_valid = True, compute_new_wall_placements = True):
         x, y, orientation = inp
         pos = x,y
 
-        if check_valid:
-            if not self.is_wall_placement_valid(pos, orientation) or self.is_wall_blocking_exit(pos, orientation):
+        if check_if_valid:
+            if not self.is_wall_placement_valid(pos, orientation):
                 print('CRAP', inp)
                 exit(2)
 
@@ -312,8 +326,12 @@ class GameState:
 
         self.wallboard[pos[0], pos[1]] = orientation
 
-        # reset to empty so that it can be recalculated
-        self.saved_wall_placements = []
+        # update wall placements
+        if compute_new_wall_placements:
+            self.update_available_wall_placements()
+        else:
+            self.saved_wall_placements = []
+
             
 
     def move_piece(self, new_pos):
@@ -346,25 +364,12 @@ class GameState:
                     if wall in wall_placements:
                         wall_placements.remove(wall)
                     if self.is_wall_placement_valid(*w):
-                        if not self.is_wall_blocking_exit(*w):
-                            wall_placements.append(wall)
+                        wall_placements.append(wall)
         
         self.saved_wall_placements = wall_placements
 
     def is_end_state(self):
         return self.player1_pos[0] == 0 or self.player2_pos[0] == self.size-1
-
-    def game_result(self, player1_maximizer=False):
-        if player1_maximizer:
-            if self.player1_pos[0] == 0:
-                return 1
-            else:
-                return -1
-        else:
-            if self.player2_pos[0] == 16:
-                return 1
-            else:
-                return -1
 
     def get_winner(self):
         if self.player1_pos[0] == 0:

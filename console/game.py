@@ -143,10 +143,10 @@ class Game:
         return best_action
 
 
-    def minimax_agent(self, is_player1_minimax, depth = 0):
+    def minimax_agent(self, is_player1_minimax, depth = 1):
         d = {}
         # print()
-        for child, move in self.game_state.get_all_child_states(True):
+        for child, move in self.game_state.get_all_child_states(True, True):
             func = lambda p1, p2: (p2-p1)
             flip = 1 if is_player1_minimax else -1
             value = flip*minimax_alpha_beta_pruning(child, depth, -math.inf, math.inf, not is_player1_minimax, func)
@@ -159,7 +159,7 @@ class Game:
     def expectimax_agent(self, is_player1_minimax):
         d = {}
         print()
-        for child, move in self.game_state.get_all_child_states(True):
+        for child, move in self.game_state.get_all_child_states(True, False):
             func = lambda p1, p2: (3*p2-2*p1) if is_player1_minimax else (2*p2-3*p1)
             flip = 1 if is_player1_minimax else -1
             value = flip*simple_path_finding_heuristic(child, func)
