@@ -1,4 +1,4 @@
-from console.states.game_state import GameState
+from console.game_state import GameState
 from collections import defaultdict
 import random
 import numpy as np
@@ -6,7 +6,7 @@ import numpy as np
 
 def randombot_action(game_state: GameState):
 
-    move_prob = 1.0
+    move_prob = 0.3
 
     wall_placements = game_state.get_available_wall_placements(False)
     available_moves = game_state.get_available_moves(False)

@@ -16,7 +16,7 @@ def bfs_shortest_to_exit(game_state):
 def bfs_dist(game_state, start, end_row, other_player_pos):
 
     if start[0] == end_row:
-        return 0
+        return -1
     visited = {start,}
     queue = deque([(start, 0)])  # (node, path_length)
 

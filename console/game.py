@@ -1,9 +1,8 @@
-from console.states.game_state import GameState, WallPieceStatus
+from console.game_state import GameState, WallPieceStatus, WallColor
 from console.util.color import Color
 from console.algorithms.minimax_alpha_beta_pruning import minimax_alpha_beta_pruning
 from console.algorithms.randombot import randombot_action
 from console.algorithms.impatientbot import impatientbot_action
-from console.algorithms.monte_carlo_tree_search import SearchNode
 from console.heuristics.simple_path_finding_heuristic import simple_path_finding_heuristic
 
 import math
@@ -11,10 +10,12 @@ import numpy as np
 from time import time, sleep
 import random
 
-Wallcolor = Color.PINK
+DEFAULT_WALL_COLOR = Color.PINK
+PLAYER1COLOR = Color.GREEN
+PLAYER2COLOR = Color.RED
 
-SIZE = 9
-WALLS = 10
+SIZE = 15
+WALLS = 10 if SIZE == 9 else int((SIZE**2)//4 - SIZE*1.5 + 3.25)
 
 MoveKeyValues = "".join([str(i) for i in range(SIZE)])
 WallKeyValues = "".join([chr(ord('a') + i).upper() for i in range(SIZE-1)])
@@ -26,18 +27,19 @@ class Game:
         self.game_state = GameState(SIZE, WALLS)
         self.verbose = verbose
         self.is_user_sim = user_sim
-        self.algorithms = ["randomBot", "impatientBot", "minimax-alpha-beta-pruning", "expectimax"]
+        self.algorithms = ["randomBot", "impatientBot", "minimax-alpha-beta-pruning", "path-search"]
         self.execution_times = [[],[]]
         self.sim_delay = sim_delay
         self.rounds = rounds
         self.wins = [0,0]
+        self.moves = [0,0]
         self.hist = []
 
         if user_sim:
             self.initialize_sim()
         else:
             self.sim_delay = 0.0
-            self.quick_run("expectimax", "expectimax")
+            self.quick_run("path-search", "path-search")
             
 
     def print_commands(self):
@@ -72,7 +74,7 @@ class Game:
             print("1. randomBot")
             print("2. impatientBot")
             print("3. minimax-alpha-beta-pruning")
-            print("4. expectimax")
+            print("4. path-search")
             while True:
                 x = input("Choose: ")
                 if not x.isdigit() and x != "x" and x != "X":
@@ -93,7 +95,7 @@ class Game:
             print("1. randomBot")
             print("2. impatientBot")
             print("3. minimax-alpha-beta-pruning")
-            print("4. expectimax")
+            print("4. path-search")
             while True:
                 x = input("Choose: ")
                 # x = "1,2"
@@ -145,27 +147,36 @@ class Game:
 
     def minimax_agent(self, is_player1_minimax, depth = 1):
         d = {}
+        self.game_state.check_wall_blocks_exit_on_gen = False
+
         # print()
         for child, move in self.game_state.get_all_child_states(True, True):
-            func = lambda p1, p2: (p2-p1)
             flip = 1 if is_player1_minimax else -1
-            value = flip*minimax_alpha_beta_pruning(child, depth, -math.inf, math.inf, not is_player1_minimax, func)
+            value = flip*minimax_alpha_beta_pruning(child, depth, -math.inf, math.inf, not is_player1_minimax)
             # print(move, value)
             d[move] = value
         # print()
+
+        self.game_state.check_wall_blocks_exit_on_gen = True
         return self.choose_best_from_actions(d)
 
 
-    def expectimax_agent(self, is_player1_minimax):
+    def pathsearch_agent(self, is_player1_minimax):
+
+        self.game_state.check_wall_blocks_exit_on_gen = False
         d = {}
-        print()
+        # print()
         for child, move in self.game_state.get_all_child_states(True, False):
-            func = lambda p1, p2: (3*p2-2*p1) if is_player1_minimax else (2*p2-3*p1)
+            if self.moves[1] <= 1:
+                func = lambda p1, p2: (3*p2-2*p1) if is_player1_minimax else (2*p2-3*p1)
+            else:
+                func = lambda p1, p2: (p2-p1)
             flip = 1 if is_player1_minimax else -1
-            value = flip*simple_path_finding_heuristic(child, func)
-            print(move, value)
+            value = flip*simple_path_finding_heuristic(child, func, float('-inf'))
+            # print(move, value)
             d[move] = value
-        print()
+        # print()
+        self.game_state.check_wall_blocks_exit_on_gen = True
         return self.choose_best_from_actions(d)
 
     def randombot_agent(self):
@@ -232,15 +243,13 @@ class Game:
         player_number = index + 1
 
         t1 = time()
-        print("Player {0:1} is thinking...".format(player_number), end='', flush = True)
+        print("Player {} ({}) is thinking...".format(player_number, 'REDACTED'), end='', flush = True)
         action = (0, 0)
-        # if self.player_simulation_algorithms[index] == "minimax":
-        #     action = self.minimax_agent(maximizer, is_alpha_beta=False)
-        
+
         if self.player_simulation_algorithms[index] == "minimax-alpha-beta-pruning":
             action = self.minimax_agent(self.game_state.player1)
-        elif self.player_simulation_algorithms[index] == "expectimax":
-            action = self.expectimax_agent(self.game_state.player1)
+        elif self.player_simulation_algorithms[index] == "path-search":
+            action = self.pathsearch_agent(self.game_state.player1)
         # elif self.player_simulation_algorithms[index] == "monte-carlo-tree-search":
         #     start = SearchNode(state=self.game_state, player1_maximizer=maximizer)
         #     selected_node = start.best_action()
@@ -255,18 +264,18 @@ class Game:
 
         if action is not None:
             t2 = time()
-            self.execution_times[index].append(t2 - t1)
+            self.execution_times[index].append(round(t2 - t1, 4))
             if len(action) == 2:
-                self.print_colored_output("Player {} has moved his piece to {}.".format(player_number, action), Color.CYAN, True, '')
+                self.print_colored_output("Player {} ({}) has moved his piece to {}.".format(player_number, 'REDACTED', action), Color.CYAN, True, '')
             else:
                 orientation = "HORIZONTAL" if action[2] == WallPieceStatus.HORIZONTAL else "VERTICAL"
                 loc = (chr(ord('a') + action[0]), chr(ord('a') + action[1]))
-                self.print_colored_output("Player {} has placed a {} wall at {}.".format(player_number, orientation, loc), Color.CYAN, True, '')
+                self.print_colored_output("Player {} ({}) has placed a {} wall at {}.".format(player_number, 'REDACTED', orientation, loc), Color.CYAN, True, '')
             
             self.print_colored_output("     This took " + str(round(t2 - t1, 4)) + " seconds.", Color.CYAN, _end = '')
             return True
         else:
-            self.print_colored_output("Player {} has no moves left.".format(player_number), Color.CYAN)
+            self.print_colored_output("Player {} ({}) has no moves left.".format(player_number, self.player_simulation_algorithms[index]), Color.CYAN)
             return False
 
     def is_end_state(self):
@@ -279,12 +288,17 @@ class Game:
                     self.print_colored_output("You lost!", Color.RED)
             else:
                 self.print_colored_output("The winner is " + winner + ".", Color.CYAN)
+                if self.rounds > 1:
+                    print("restarting in 5:", end = "\r", flush = True)
+                    sleep(5)
             return True
         else:
             return False
 
     def play(self):
         while self.rounds:
+            start_time = time()
+            self.game_state.get_available_wall_placements()
             print()
             self.print_game_stats()
             print("\n")
@@ -297,21 +311,32 @@ class Game:
                 self.wins[winner_index] += 1
                 self.rounds -= 1
                 self.game_state.reinitialize()
+                self.moves = [0,0]
                 continue
-
+            
             if self.game_state.player1:
                 if self.is_user_sim:
                     self.player1_user()
                 else:
                     res = self.player_simulation()
-                    sleep(self.sim_delay)
-                    if not res:
-                        break
+                    if res == None:
+                        print("Bot has returned something unholy")
+                        exit(1)
+                    while (time() - start_time < self.sim_delay):
+                        continue
+
+                    
             else:
                 res = self.player_simulation()
                 sleep(self.sim_delay)
-                if not res:
-                        break
+                if res == None:
+                    print("Bot has returned something unholy")
+                    exit(2)
+                while (time() - start_time < self.sim_delay):
+                    continue
+
+            player_index = 1*(not self.game_state.player1)
+            self.moves[player_index] += 1
 
             self.game_state.player1 = not self.game_state.player1
 
@@ -321,8 +346,8 @@ class Game:
         
         g = self.game_state
         
-        print(Color.GREEN + "{0:<15}".format("Player 1 walls") + Color.WHITE +
-              "|" + Color.RED + "{0:<15}".format(
+        print(PLAYER1COLOR + "{0:<15}".format("Player 1 walls") + Color.WHITE +
+              "|" + PLAYER2COLOR + "{0:<15}".format(
             "Player 2 walls") + Color.RESET,
               end="|\n")
         print("{0:-<15}|{1:-<15}".format("", ""), end="|\n")
@@ -340,12 +365,12 @@ class Game:
         for i in range(g.size):
             if i == 0:
                 print("      {0:<2} ".format(i),
-                      end=Wallcolor + chr(ord('a') + i).lower() + Color.RESET)
+                      end=DEFAULT_WALL_COLOR + chr(ord('a') + i).lower() + Color.RESET)
             elif i == g.size - 1:
                 print("  {0:<3}".format(i), end=" ")
             else:
                 print("  {0:<2} ".format(i),
-                      end=Wallcolor + chr(ord('a') + i).lower() + Color.RESET)
+                      end=DEFAULT_WALL_COLOR + chr(ord('a') + i).lower() + Color.RESET)
         print()
         print()
 
@@ -353,7 +378,7 @@ class Game:
             if i % 2 == 0:
                 print("{0:>2}  ".format(i//2), end="")
             else:
-                print(Wallcolor + "{0:>2}  ".format(chr(ord('a') + i//2).lower()) + Color.RESET, end="")
+                print(DEFAULT_WALL_COLOR + "{0:>2}  ".format(chr(ord('a') + i//2).lower()) + Color.RESET, end="")
 
             for j in range(g.cols + g.size):
 
@@ -368,25 +393,33 @@ class Game:
                     y = j//2
                     if j%2 == 0:
                         if np.array_equal(g.player1_pos, [x,y]):
-                            print(Color.GREEN + " {0:2} ".format("P1") + Color.RESET, end="")
+                            print(PLAYER1COLOR + " {0:2} ".format("P1") + Color.RESET, end="")
                         elif np.array_equal(g.player2_pos, [x,y]):
-                            print(Color.RED + " {0:2} ".format("P2") + Color.RESET, end="")
+                            print(PLAYER2COLOR + " {0:2} ".format("P2") + Color.RESET, end="")
                         else:
                             print("{0:4}".format(""), end="")
                     else:
-                        if g.wallboard[min(g.rows-1, x), y] == WallPieceStatus.VERTICAL or g.wallboard[max(0,x-1), y] == WallPieceStatus.VERTICAL:
-                            print(Wallcolor + " \u2503" + Color.RESET, end="")
+                        if g.wallboard[min(g.rows-1, x), y] == WallPieceStatus.VERTICAL:
+                            print(self.get_wall_color(g, min(g.rows-1, x), y) + " \u2503" + Color.RESET, end="")
+                        elif g.wallboard[max(0,x-1), y] == WallPieceStatus.VERTICAL:
+                            print(self.get_wall_color(g, max(0,x-1), y) + " \u2503" + Color.RESET, end="")
                         else:
                             print(" |", end="")
                 else:
                     if j%2 == 0:
                         x = i//2
                         y = j//2
-                        if g.wallboard[x,min(g.cols-1,y)] == WallPieceStatus.HORIZONTAL or g.wallboard[x, max(0,y-1)] == WallPieceStatus.HORIZONTAL:
+                        if g.wallboard[x, min(g.cols-1,y)] == WallPieceStatus.HORIZONTAL:  
                             line = ""
                             for k in range(5):
                                 line += "\u2501"
-                            print(Wallcolor + line + Color.RESET, end="")
+                            print(self.get_wall_color(g, x, min(g.cols-1,y)) + line + Color.RESET, end="")
+                            
+                        elif g.wallboard[x, max(0,y-1)] == WallPieceStatus.HORIZONTAL:
+                            line = ""
+                            for k in range(5):
+                                line += "\u2501"
+                            print(self.get_wall_color(g, x, max(0,y-1)) + line + Color.RESET, end="")
                         else:
                             line = ""
                             for k in range(5):
@@ -396,8 +429,13 @@ class Game:
                         if g.wallboard[i//2, j//2] == WallPieceStatus.FREE_WALL:
                             print("o", end="")
                         else:
-                            print(Wallcolor + "o" + Color.RESET, end="")        
+                            print(self.get_wall_color(g, i//2, j//2) + "o" + Color.RESET, end="")        
             print()
+
+
+    @staticmethod
+    def get_wall_color(g, i, j):
+        return PLAYER1COLOR if g.colors_board[i,j] == WallColor.PLAYER1 else PLAYER2COLOR
 
     @staticmethod
     def print_colored_output(text, color, wipe=False, _end = '\n'):

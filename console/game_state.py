@@ -2,7 +2,6 @@ from console.util.wall_direction import WallDirection
 import numpy as np
 from copy import *
 from time import *
-from console.search.astar import astar
 from console.search.dfs_check_exit import dfs_check_if_exit_paths_exist
 from console.util.color import Color
 import threading
@@ -13,8 +12,10 @@ class WallPieceStatus:
     HORIZONTAL = 1
     VERTICAL = 2
 
-
-
+class WallColor:
+    FREE_WALL = 0
+    PLAYER1 = 1
+    PLAYER2 = 2
 
 
 class GameState:
@@ -29,10 +30,13 @@ class GameState:
         self.lock = threading.Lock()
         self.saved_wall_placements = []
 
+        self.check_wall_blocks_exit_on_gen = True
+
         self.player1_pos = np.array([self.size-1, self.size//2])
         self.player2_pos = np.array([0, self.size//2])
 
-        self.wallboard = np.zeros((self.rows, self.cols), dtype=int)   
+        self.wallboard = np.zeros((self.rows, self.cols), dtype=int)  
+        self.colors_board = np.zeros((self.rows, self.cols), dtype=int)  
         self.set_up_board()
 
 
@@ -54,12 +58,15 @@ class GameState:
         for i in range(self.rows):
             for j in range(self.cols):
                 self.wallboard[i,j] = WallPieceStatus.FREE_WALL
+                self.colors_board[i,j] = WallColor.FREE_WALL
 
+    
     def copy(self):
         game_state = copy(self)
         game_state.player1_pos = copy(self.player1_pos)
         game_state.player2_pos = copy(self.player2_pos)
         game_state.wallboard = copy(self.wallboard)
+        game_state.colors_board = copy(self.colors_board)
         game_state.saved_wall_placements = deepcopy(self.saved_wall_placements)
         return game_state
 
@@ -113,10 +120,10 @@ class GameState:
         return True
 
         #self.saved_wall_placements = []
-    def get_all_child_states(self, include_move = False, compute_new_wall_placements=True):
+    def get_all_child_states(self, include_move = False, compute_new_wall_placements = True):
 
         children = []
-        available_moves = self.get_available_moves(True)
+        available_moves = self.get_available_moves(True, compute_new_wall_placements)
         for child, move in available_moves:
             if not include_move:
                 children.append(child)
@@ -134,7 +141,7 @@ class GameState:
         return children
     
    
-    def get_available_moves(self, include_state=False):
+    def get_available_moves(self, include_state=False, compute_new_wall_placements = True):
         available_moves = []
                     
 
@@ -153,7 +160,7 @@ class GameState:
                     available_moves.append((x,y))
                 else:
                     child = self.copy()
-                    child.move_piece((x,y))
+                    child.move_piece((x,y), compute_new_wall_placements)
                     available_moves.append((child, (x,y)))
         
         # hor jump
@@ -174,7 +181,7 @@ class GameState:
                         available_moves.append((x,y))
                     else:
                         child = self.copy()
-                        child.move_piece((x,y))
+                        child.move_piece((x,y), compute_new_wall_placements)
                         available_moves.append((child, (x,y)))  
 
                 # diag jump
@@ -185,7 +192,7 @@ class GameState:
                                 available_moves.append((x,y))
                             else:
                                 child = self.copy()
-                                child.move_piece((x,y))
+                                child.move_piece((x,y), compute_new_wall_placements)
                                 available_moves.append((child, (x,y)))
                 elif y_dir == 0:
                     for x,y in [(otherpos[0], otherpos[1]+i) for i in [1,-1]]:
@@ -194,7 +201,7 @@ class GameState:
                                 available_moves.append((x,y))
                             else:
                                 child = self.copy()
-                                child.move_piece((x,y))
+                                child.move_piece((x,y), compute_new_wall_placements)
                                 available_moves.append((child, (x,y)))
         # print(available_moves)
         return available_moves
@@ -217,9 +224,11 @@ class GameState:
                 return False
             if pos[0] < self.rows-1 and self.wallboard[pos[0]+1, pos[1]] == WallPieceStatus.VERTICAL:
                 return False
-        
-        if self.is_wall_blocking_exit(pos, orientation):
-            return False
+            
+        #print(self.check_wall_blocks_exit_on_gen)
+        if self.check_wall_blocks_exit_on_gen:
+            if self.is_wall_blocking_exit(pos, orientation):
+                return False
             
         return True
 
@@ -240,13 +249,14 @@ class GameState:
         self.saved_wall_placements = new_wall_placements
         
 
-    def get_available_wall_placements(self, include_state=False, compute_new_wall_placements=True):
+    def get_available_wall_placements(self, include_state=False, compute_new_wall_placements = True):
         wall_placements = []
         if self.player1:
             if self.player1_walls_num <= 0:
                 return wall_placements
         elif self.player2_walls_num <= 0:
                 return wall_placements
+        
         # valid wall placement already known already found
         if self.saved_wall_placements:
             if include_state:
@@ -258,7 +268,7 @@ class GameState:
                 return wall_placements_with_states
             else:
                 return self.saved_wall_placements
-            
+        
         for i in range(self.rows):
             for j in range(self.cols):
 
@@ -272,7 +282,6 @@ class GameState:
                     else:
                         copy_state = self.copy()
                         copy_state.place_wall((*pos, orientation), False, compute_new_wall_placements)
-                        print('g',copy_state.saved_wall_placements)
                         wall_placements.append((copy_state, (*pos, orientation)))
 
                 orientation = WallPieceStatus.VERTICAL
@@ -325,6 +334,7 @@ class GameState:
             self.player2_walls_num -= 1
 
         self.wallboard[pos[0], pos[1]] = orientation
+        self.colors_board[pos[0], pos[1]] = WallColor.PLAYER1 if self.player1 else WallColor.PLAYER2
 
         # update wall placements
         if compute_new_wall_placements:
@@ -334,7 +344,7 @@ class GameState:
 
             
 
-    def move_piece(self, new_pos):
+    def move_piece(self, new_pos, compute_new_wall_placements = True):
         
         if self.player1:
             pos = self.player1_pos
@@ -352,21 +362,26 @@ class GameState:
         else:
             self.player2_pos = np.array(new_pos)
 
-        wall_placements = self.get_available_wall_placements()
-        for i in [-1, 0]:
-            for j in [-1,0]:
-                w1 = ((new_pos[0] + i, new_pos[1] + j), WallPieceStatus.HORIZONTAL)
-                w2 = ((new_pos[0] + i, new_pos[1] + j), WallPieceStatus.VERTICAL)
-                w3 = ((pos[0] + i, pos[1] + j), WallPieceStatus.HORIZONTAL)
-                w4 = ((pos[0] + i, pos[1] + j), WallPieceStatus.VERTICAL)
-                for w in [w1,w2,w3,w4]:
-                    wall = (*w[0],w[1])
-                    if wall in wall_placements:
-                        wall_placements.remove(wall)
-                    if self.is_wall_placement_valid(*w):
-                        wall_placements.append(wall)
-        
-        self.saved_wall_placements = wall_placements
+        if compute_new_wall_placements:
+            wall_placements = self.get_available_wall_placements(False, False)
+            
+            seen = set()
+            for i in [-1, 0]:
+                for j in [-1,0]:
+                    w1 = ((new_pos[0] + i, new_pos[1] + j), WallPieceStatus.HORIZONTAL)
+                    w2 = ((new_pos[0] + i, new_pos[1] + j), WallPieceStatus.VERTICAL)
+                    w3 = ((pos[0] + i, pos[1] + j), WallPieceStatus.HORIZONTAL)
+                    w4 = ((pos[0] + i, pos[1] + j), WallPieceStatus.VERTICAL)
+                    for w in [w1,w2,w3,w4]:
+                        wall = (*w[0],w[1])
+                        if wall not in seen:
+                            seen.add(wall)
+                            if wall in wall_placements:
+                                wall_placements.remove(wall)
+                            if self.is_wall_placement_valid(*w):
+                                wall_placements.append(wall)
+            
+            self.saved_wall_placements = wall_placements
 
     def is_end_state(self):
         return self.player1_pos[0] == 0 or self.player2_pos[0] == self.size-1
