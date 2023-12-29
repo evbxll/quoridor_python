@@ -1,9 +1,7 @@
-from console.util.wall_direction import WallDirection
 import numpy as np
 from copy import *
 from time import *
 from console.search.dfs_check_exit import dfs_check_if_exit_paths_exist
-from console.util.color import Color
 import threading
 
 
@@ -120,11 +118,13 @@ class GameState:
         return True
 
         #self.saved_wall_placements = []
-    def get_all_child_states(self, include_move = False, compute_new_wall_placements = True):
+    def get_all_child_states(self, include_move = False, compute_new_wall_placements = True, swap_turn = True):
 
         children = []
         available_moves = self.get_available_moves(True, compute_new_wall_placements)
         for child, move in available_moves:
+            if swap_turn:
+                child.player1 = not child.player1
             if not include_move:
                 children.append(child)
             else:
@@ -133,6 +133,8 @@ class GameState:
         available_wall_placements = self.get_available_wall_placements(True, compute_new_wall_placements)
 
         for child, wall_placement in available_wall_placements:
+            if swap_turn:
+                child.player1 = not child.player1
             if not include_move:
                 children.append(child)
             else:
@@ -388,6 +390,8 @@ class GameState:
 
     def get_winner(self):
         if self.player1_pos[0] == 0:
-            return "P1"
+            return 0
+        elif self.player2_pos[0] == self.rows:
+            return 1
         else:
-            return "P2"
+            return -1

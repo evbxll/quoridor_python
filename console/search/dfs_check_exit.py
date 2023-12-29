@@ -1,8 +1,3 @@
-from copy import copy
-from console.util.priority_queue_item import PriorityQueueItem
-from queue import PriorityQueue
-
-
 dirs = [(1,0), (0,1), (0,-1), (-1,0)]
 
 def dfs_check_if_exit_paths_exist(game_state):

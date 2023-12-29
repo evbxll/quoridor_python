@@ -12,3 +12,14 @@ class Color:
     RESET = "\u001b[0m"
     BROWN = "\033[0;33m"
     BACKGROUND_YELLOW = "\u001b[43m"
+
+    # Additional Colors
+    LIGHT_RED = "\u001b[91m"
+    LIGHT_GREEN = "\u001b[92m"
+    LIGHT_YELLOW = "\u001b[93m"
+    LIGHT_BLUE = "\u001b[94m"
+    LIGHT_MAGENTA = "\u001b[95m"
+    LIGHT_CYAN = "\u001b[96m"
+    DARK_GRAY = "\u001b[90m"
+    LIGHT_GRAY = "\u001b[37;1m"
+

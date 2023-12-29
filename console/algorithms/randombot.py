@@ -1,7 +1,5 @@
 from console.game_state import GameState
-from collections import defaultdict
 import random
-import numpy as np
 
 
 def randombot_action(game_state: GameState):

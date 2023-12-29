@@ -11,10 +11,10 @@ from time import time, sleep
 import random
 
 DEFAULT_WALL_COLOR = Color.PINK
-PLAYER1COLOR = Color.GREEN
-PLAYER2COLOR = Color.RED
+PLAYER1COLOR = Color.LIGHT_BLUE
+PLAYER2COLOR = Color.LIGHT_RED
 
-SIZE = 15
+SIZE = 9
 WALLS = 10 if SIZE == 9 else int((SIZE**2)//4 - SIZE*1.5 + 3.25)
 
 MoveKeyValues = "".join([str(i) for i in range(SIZE)])
@@ -28,12 +28,11 @@ class Game:
         self.verbose = verbose
         self.is_user_sim = user_sim
         self.algorithms = ["randomBot", "impatientBot", "minimax-alpha-beta-pruning", "path-search"]
-        self.execution_times = [[],[]]
+        self.execution_times = [[[],[]]]
         self.sim_delay = sim_delay
         self.rounds = rounds
         self.wins = [0,0]
-        self.moves = [0,0]
-        self.hist = []
+        self.hist_per_round = [[[],[]],]
 
         if user_sim:
             self.initialize_sim()
@@ -145,46 +144,43 @@ class Game:
         return best_action
 
 
-    def minimax_agent(self, is_player1_minimax, depth = 1):
+    def minimax_agent(self, game_state, is_player1_minimax, depth = 1):
         d = {}
-        self.game_state.check_wall_blocks_exit_on_gen = False
+        game_state.check_wall_blocks_exit_on_gen = False
 
         # print()
-        for child, move in self.game_state.get_all_child_states(True, True):
+        for child, move in game_state.get_all_child_states(True, True, True):
             flip = 1 if is_player1_minimax else -1
             value = flip*minimax_alpha_beta_pruning(child, depth, -math.inf, math.inf, not is_player1_minimax)
             # print(move, value)
             d[move] = value
         # print()
 
-        self.game_state.check_wall_blocks_exit_on_gen = True
+        game_state.check_wall_blocks_exit_on_gen = True
         return self.choose_best_from_actions(d)
 
 
-    def pathsearch_agent(self, is_player1_minimax):
+    def pathsearch_agent(self, game_state, is_player1_minimax):
 
-        self.game_state.check_wall_blocks_exit_on_gen = False
+        game_state.check_wall_blocks_exit_on_gen = False
         d = {}
         # print()
-        for child, move in self.game_state.get_all_child_states(True, False):
-            if self.moves[1] <= 1:
-                func = lambda p1, p2: (3*p2-2*p1) if is_player1_minimax else (2*p2-3*p1)
-            else:
-                func = lambda p1, p2: (p2-p1)
+        for child, move in game_state.get_all_child_states(True, False, True):
+            func = lambda p1, p2: (p2**2-p1**2)
             flip = 1 if is_player1_minimax else -1
-            value = flip*simple_path_finding_heuristic(child, func, float('-inf'))
+            value = flip*simple_path_finding_heuristic(child, func, float('-inf'), 0)
             # print(move, value)
             d[move] = value
         # print()
-        self.game_state.check_wall_blocks_exit_on_gen = True
+        game_state.check_wall_blocks_exit_on_gen = True
         return self.choose_best_from_actions(d)
 
-    def randombot_agent(self):
-        action = randombot_action(self.game_state)
+    def randombot_agent(self, game_state):
+        action = randombot_action(game_state)
         return self.choose_action(action)
 
-    def impatientbot_agent(self):
-        action = impatientbot_action(self.game_state)
+    def impatientbot_agent(self, game_state):
+        action = impatientbot_action(game_state)
         return self.choose_action(action)
 
     def player1_user(self):
@@ -210,6 +206,7 @@ class Game:
                             Game.print_colored_output("Illegal move!", Color.RED)
                         else:
                             self.game_state.move_piece(move)
+                            self.hist_per_round[-1][0].append(move)
                             break
 
                 elif value.upper().startswith("W"):
@@ -233,6 +230,7 @@ class Game:
                                 Game.print_colored_output("Illegal wall placement!", Color.RED)
                             else:
                                 self.game_state.place_wall((x_int, y_int, orientation))
+                                self.hist_per_round[-1][0].append(move)
                                 break
 
                 else:
@@ -243,34 +241,36 @@ class Game:
         player_number = index + 1
 
         t1 = time()
-        print("Player {} ({}) is thinking...".format(player_number, 'REDACTED'), end='', flush = True)
+        print("Player {} ({}) is thinking...".format(player_number, self.player_simulation_algorithms[index]), end='', flush = True)
         action = (0, 0)
 
+        cop = self.game_state#.copy()
         if self.player_simulation_algorithms[index] == "minimax-alpha-beta-pruning":
-            action = self.minimax_agent(self.game_state.player1)
+            action = self.minimax_agent(cop, self.game_state.player1)
         elif self.player_simulation_algorithms[index] == "path-search":
-            action = self.pathsearch_agent(self.game_state.player1)
+            action = self.pathsearch_agent(cop, self.game_state.player1)
         # elif self.player_simulation_algorithms[index] == "monte-carlo-tree-search":
         #     start = SearchNode(state=self.game_state, player1_maximizer=maximizer)
         #     selected_node = start.best_action()
         #     action = selected_node.parent_action
         #     self.game_state.execute_action(action, False)
         elif self.player_simulation_algorithms[index] == "randomBot":
-            action = self.randombot_agent()
+            action = self.randombot_agent(cop)
         elif self.player_simulation_algorithms[index] == "impatientBot":
-            action = self.impatientbot_agent()
+            action = self.impatientbot_agent(cop)
         else:
             print('No bot configured')
 
         if action is not None:
             t2 = time()
-            self.execution_times[index].append(round(t2 - t1, 4))
+            self.execution_times[-1][index].append(round(t2 - t1, 4))
+            self.hist_per_round[-1][index].append(action)
             if len(action) == 2:
-                self.print_colored_output("Player {} ({}) has moved his piece to {}.".format(player_number, 'REDACTED', action), Color.CYAN, True, '')
+                self.print_colored_output("Player {} ({}) has moved his piece to {}.".format(player_number, self.player_simulation_algorithms[index], action), Color.CYAN, True, '')
             else:
                 orientation = "HORIZONTAL" if action[2] == WallPieceStatus.HORIZONTAL else "VERTICAL"
                 loc = (chr(ord('a') + action[0]), chr(ord('a') + action[1]))
-                self.print_colored_output("Player {} ({}) has placed a {} wall at {}.".format(player_number, 'REDACTED', orientation, loc), Color.CYAN, True, '')
+                self.print_colored_output("Player {} ({}) has placed a {} wall at {}.".format(player_number, self.player_simulation_algorithms[index], orientation, str(loc).replace("'", "")), Color.CYAN, True, '')
             
             self.print_colored_output("     This took " + str(round(t2 - t1, 4)) + " seconds.", Color.CYAN, _end = '')
             return True
@@ -280,17 +280,7 @@ class Game:
 
     def is_end_state(self):
         if self.game_state.is_end_state():
-            winner = self.game_state.get_winner()
-            if self.is_user_sim:
-                if winner == "P1":
-                    self.print_colored_output("You won!", Color.GREEN)
-                else:
-                    self.print_colored_output("You lost!", Color.RED)
-            else:
-                self.print_colored_output("The winner is " + winner + ".", Color.CYAN)
-                if self.rounds > 1:
-                    print("restarting in 5:", end = "\r", flush = True)
-                    sleep(5)
+            
             return True
         else:
             return False
@@ -305,13 +295,32 @@ class Game:
             self.print_board()
             print()
 
-            if self.is_end_state():
-                print("Execution averages: ", [sum(i) / max(1,len(i)) for i in self.execution_times])
-                winner_index = 0 if self.game_state.get_winner() == 'P1' else 1
-                self.wins[winner_index] += 1
+            if self.game_state.is_end_state():
+                execution_times = [sum(i) / max(1,len(i)) for i in self.execution_times[-1]]
+                num_moves = [len(i) for i in self.hist_per_round[-1]]
+                self.hist_per_round.append([[],[]])
+                self.execution_times.append([[],[]])
+
+                print("Execution averages this round: ", execution_times)
+                print("Number of moves this round: ", num_moves)
+
+                winner_ind = self.game_state.get_winner()
+                self.wins[winner_ind] += 1
                 self.rounds -= 1
                 self.game_state.reinitialize()
-                self.moves = [0,0]
+
+                
+                if self.is_user_sim:
+                    if winner_ind == 0:
+                        self.print_colored_output("You won!", Color.GREEN)
+                    else:
+                        self.print_colored_output("You lost!", Color.RED)
+                else:
+                    winner = 'P1' if winner_ind == 0 else 'P2'
+                    self.print_colored_output("The winner is " + winner + ".", Color.CYAN)
+                    if self.rounds >= 1:
+                        print("restarting in 3:", end = "\r", flush = True)
+                        sleep(3)
                 continue
             
             if self.game_state.player1:
@@ -336,7 +345,6 @@ class Game:
                     continue
 
             player_index = 1*(not self.game_state.player1)
-            self.moves[player_index] += 1
 
             self.game_state.player1 = not self.game_state.player1
 
