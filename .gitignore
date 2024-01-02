@@ -1,4 +1,7 @@
 __pycache__/
 .DS_Store
 temp/
-neural/
+dnn/
+passwords.py
+.vscode/
+

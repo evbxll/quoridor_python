@@ -21,20 +21,32 @@ MoveKeyValues = "".join([str(i) for i in range(SIZE)])
 WallKeyValues = "".join([chr(ord('a') + i).upper() for i in range(SIZE-1)])
 
 class Game:
-    def __init__(self, user_sim = False, verbose = True, rounds = 1, sim_delay = 0.5):
+    def __init__(self, user_sim = False, verbose = True, rounds = 1, sim_delay = 0.5, online_bot=-1):
 
         self.player_simulation_algorithms = ["randomBot", "randomBot"]
         self.game_state = GameState(SIZE, WALLS)
         self.verbose = verbose
         self.is_user_sim = user_sim
-        self.algorithms = ["randomBot", "impatientBot", "minimax-alpha-beta-pruning", "path-search"]
+        self.algorithms = ["randomBot", "impatientBot", "minimax-alpha-beta-pruning", "path-search", "online-bot"]
         self.execution_times = [[[],[]]]
         self.sim_delay = sim_delay
         self.rounds = rounds
         self.wins = [0,0]
         self.hist_per_round = [[[],[]],]
 
-        if user_sim:
+        
+
+        if online_bot != -1:
+            self.online_move = None
+            self.sim_delay = 0.0
+            self.is_user_sim = False
+            if online_bot == 0:
+                self.quick_run("path-search", "online-bot")
+            elif online_bot == 1:
+                self.quick_run("online-bot", "path-search")
+            else:
+                self.quick_run("online-bot", "online-bot")
+        elif user_sim:
             self.initialize_sim()
         else:
             self.sim_delay = 0.0
@@ -166,10 +178,9 @@ class Game:
         d = {}
         # print()
         for child, move in game_state.get_all_child_states(True, False, True):
-            func = lambda p1, p2: (p2**2-p1**2)
+            func = lambda p1, p2: (p2-p1)
             flip = 1 if is_player1_minimax else -1
-            value = flip*simple_path_finding_heuristic(child, func, float('-inf'), 0)
-            # print(move, value)
+            value = flip*simple_path_finding_heuristic(child, func, float('-inf'), -1)
             d[move] = value
         # print()
         game_state.check_wall_blocks_exit_on_gen = True
@@ -182,6 +193,15 @@ class Game:
     def impatientbot_agent(self, game_state):
         action = impatientbot_action(game_state)
         return self.choose_action(action)
+
+    def online_bot(self, move):
+        if len(move) == 2:
+            self.game_state.move_piece(move)
+        else:
+            self.game_state.place_wall(move)
+        self.online_move = move
+        return
+
 
     def player1_user(self):
         while True:
@@ -230,7 +250,7 @@ class Game:
                                 Game.print_colored_output("Illegal wall placement!", Color.RED)
                             else:
                                 self.game_state.place_wall((x_int, y_int, orientation))
-                                self.hist_per_round[-1][0].append(move)
+                                self.hist_per_round[-1][0].append((x_int, y_int, orientation))
                                 break
 
                 else:
@@ -240,11 +260,12 @@ class Game:
         index = 1*(not self.game_state.player1)
         player_number = index + 1
 
-        t1 = time()
+        
         print("Player {} ({}) is thinking...".format(player_number, self.player_simulation_algorithms[index]), end='', flush = True)
         action = (0, 0)
 
         cop = self.game_state#.copy()
+        t1 = time()
         if self.player_simulation_algorithms[index] == "minimax-alpha-beta-pruning":
             action = self.minimax_agent(cop, self.game_state.player1)
         elif self.player_simulation_algorithms[index] == "path-search":
@@ -258,6 +279,11 @@ class Game:
             action = self.randombot_agent(cop)
         elif self.player_simulation_algorithms[index] == "impatientBot":
             action = self.impatientbot_agent(cop)
+        elif self.player_simulation_algorithms[index] == "online-bot":
+            while self.online_move == None:
+                continue
+            action = self.online_move
+            self.online_move = None
         else:
             print('No bot configured')
 
@@ -320,7 +346,7 @@ class Game:
                     self.print_colored_output("The winner is " + winner + ".", Color.CYAN)
                     if self.rounds >= 1:
                         print("restarting in 3:", end = "\r", flush = True)
-                        sleep(3)
+                        #sleep(3)
                 continue
             
             if self.game_state.player1:
@@ -343,8 +369,6 @@ class Game:
                     exit(2)
                 while (time() - start_time < self.sim_delay):
                     continue
-
-            player_index = 1*(not self.game_state.player1)
 
             self.game_state.player1 = not self.game_state.player1
 
