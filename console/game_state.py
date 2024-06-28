@@ -283,6 +283,9 @@ class GameState:
 
 
     def move_piece(self, new_pos, compute_new_wall_placements = True):
+        '''
+        Moves a piece to a new_pos
+        '''
 
         if self.player1:
             pos = self.player1_pos

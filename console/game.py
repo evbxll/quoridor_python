@@ -34,7 +34,7 @@ class Game:
         self.wins = [0,0]
         self.hist_per_round = [[[],[]],]
 
-        
+
 
         if online_bot != -1:
             self.online_move = None
@@ -51,7 +51,7 @@ class Game:
         else:
             self.sim_delay = 0.0
             self.quick_run("path-search", "path-search")
-            
+
 
     def print_commands(self):
         print(
@@ -135,14 +135,14 @@ class Game:
         else:
             self.game_state.place_wall(action)
         return action
-    
+
 
     def choose_best_from_actions(self, d):
         if len(d.keys()) == 0:
             return None
 
         max_value = max(d.values())
-    
+
         top_actions = [action for action, value in d.items() if value == max_value]
         moves_in_top_actions = [t for t in top_actions if len(t) == 2]
         if moves_in_top_actions:
@@ -260,7 +260,7 @@ class Game:
         index = 1*(not self.game_state.player1)
         player_number = index + 1
 
-        
+
         print("Player {} ({}) is thinking...".format(player_number, self.player_simulation_algorithms[index]), end='', flush = True)
         action = (0, 0)
 
@@ -297,7 +297,7 @@ class Game:
                 orientation = "HORIZONTAL" if action[2] == WallPieceStatus.HORIZONTAL else "VERTICAL"
                 loc = (chr(ord('a') + action[0]), chr(ord('a') + action[1]))
                 self.print_colored_output("Player {} ({}) has placed a {} wall at {}.".format(player_number, self.player_simulation_algorithms[index], orientation, str(loc).replace("'", "")), Color.CYAN, True, '')
-            
+
             self.print_colored_output("     This took " + str(round(t2 - t1, 4)) + " seconds.", Color.CYAN, _end = '')
             return True
         else:
@@ -306,7 +306,7 @@ class Game:
 
     def is_end_state(self):
         if self.game_state.is_end_state():
-            
+
             return True
         else:
             return False
@@ -335,7 +335,7 @@ class Game:
                 self.rounds -= 1
                 self.game_state.reinitialize()
 
-                
+
                 if self.is_user_sim:
                     if winner_ind == 0:
                         self.print_colored_output("You won!", Color.GREEN)
@@ -348,7 +348,7 @@ class Game:
                         print("restarting in 3:", end = "\r", flush = True)
                         #sleep(3)
                 continue
-            
+
             if self.game_state.player1:
                 if self.is_user_sim:
                     self.player1_user()
@@ -360,7 +360,7 @@ class Game:
                     while (time() - start_time < self.sim_delay):
                         continue
 
-                    
+
             else:
                 res = self.player_simulation()
                 sleep(self.sim_delay)
@@ -375,9 +375,9 @@ class Game:
     def print_game_stats(self):
         if not self.verbose:
             return
-        
+
         g = self.game_state
-        
+
         print(PLAYER1COLOR + "{0:<15}".format("Player 1 walls") + Color.WHITE +
               "|" + PLAYER2COLOR + "{0:<15}".format(
             "Player 2 walls") + Color.RESET,
@@ -389,7 +389,7 @@ class Game:
     def print_board(self):
         if not self.verbose:
             return
-        
+
         g = self.game_state
 
         # print(g.wallboard)
@@ -419,7 +419,7 @@ class Game:
                 # (0,1) means a possible ver wall
                 # (1,0) means a possible hor wall
                 # (1,1) means a intersection of walls
-                
+
                 if i % 2 == 0:
                     x = i//2
                     y = j//2
@@ -441,12 +441,12 @@ class Game:
                     if j%2 == 0:
                         x = i//2
                         y = j//2
-                        if g.wallboard[x, min(g.cols-1,y)] == WallPieceStatus.HORIZONTAL:  
+                        if g.wallboard[x, min(g.cols-1,y)] == WallPieceStatus.HORIZONTAL:
                             line = ""
                             for k in range(5):
                                 line += "\u2501"
                             print(self.get_wall_color(g, x, min(g.cols-1,y)) + line + Color.RESET, end="")
-                            
+
                         elif g.wallboard[x, max(0,y-1)] == WallPieceStatus.HORIZONTAL:
                             line = ""
                             for k in range(5):
@@ -461,7 +461,7 @@ class Game:
                         if g.wallboard[i//2, j//2] == WallPieceStatus.FREE_WALL:
                             print("o", end="")
                         else:
-                            print(self.get_wall_color(g, i//2, j//2) + "o" + Color.RESET, end="")        
+                            print(self.get_wall_color(g, i//2, j//2) + "o" + Color.RESET, end="")
             print()
 
 
