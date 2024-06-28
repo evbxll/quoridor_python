@@ -1,7 +1,9 @@
 import numpy as np
+
+
 from copy import *
 from time import *
-from console.search.dfs_check_exit import dfs_check_if_exit_paths_exist
+from console.search.astar import astar_search
 import threading
 
 
@@ -24,11 +26,11 @@ class GameState:
 
         self.check_wall_blocks_exit_on_gen = True
 
-        self.player1_pos = np.array([self.size-1, self.size//2])
-        self.player2_pos = np.array([0, self.size//2])
+        self.player1_pos: tuple = tuple([self.size-1, self.size//2])
+        self.player2_pos: tuple = tuple([0, self.size//2])
 
-        self.verwalls = np.zeros((self.rows, self.cols), dtype=int)
-        self.horwalls = np.zeros((self.rows, self.cols), dtype=int)
+        self.verwalls = np.zeros((self.rows, self.cols), dtype=bool)
+        self.horwalls = np.zeros((self.rows, self.cols), dtype=bool)
         self.wall_colors_board = np.zeros((self.rows, self.cols), dtype=int)
 
 
@@ -36,8 +38,12 @@ class GameState:
         '''
         Sets up the game state to starting
         '''
-        self.player1_pos = np.array([self.size-1, self.size//2])
-        self.player2_pos = np.array([0, self.size//2])
+        self.player1_pos = tuple([self.size-1, self.size//2])
+        self.player2_pos = tuple([0, self.size//2])
+
+        self.verwalls = np.zeros((self.rows, self.cols), dtype=bool)
+        self.horwalls = np.zeros((self.rows, self.cols), dtype=bool)
+        self.wall_colors_board = np.zeros((self.rows, self.cols), dtype=int)
 
         self.player1 = True
         self.size = self.size
@@ -65,6 +71,12 @@ class GameState:
             return self.player1_pos[0] == 0
         else:
             return self.player2_pos[0] == self.rows
+
+    def get_current_player_pos(self):
+        if self.player1:
+            return copy(self.player1_pos)
+        else:
+            return copy(self.player2_pos)
 
     def is_valid_move(self, pos : tuple, new_pos : tuple):
         '''
@@ -176,23 +188,27 @@ class GameState:
         Temp sets a wall, not player colors tho
         '''
         if(isHorizontal):
-            self.horwalls[pos[0], pos[1]] = 1
+            self.horwalls[pos[0], pos[1]] = True
         else:
-            self.verwalls[pos[0], pos[1]] = 1
+            self.verwalls[pos[0], pos[1]] = True
 
     def unset_wall(self, pos : tuple):
         '''
         Clears a wall from pos, clears both ver and hor (only one should have been set in pos)
         '''
-        self.horwalls[pos[0], pos[1]] = 0
-        self.verwalls[pos[0], pos[1]] = 0
+        self.horwalls[pos[0], pos[1]] = False
+        self.verwalls[pos[0], pos[1]] = False
 
     def is_wall_blocking_exit(self, pos : tuple, isHorizontal : bool):
         '''
         Checks if a wall would block the exit
         '''
         self.temp_set_wall(pos, isHorizontal)
-        exit_blocked = not dfs_check_if_exit_paths_exist(self)
+
+        # check paths
+        p1, p2 = astar_search(self)
+        exit_blocked = (p1 == np.inf or p2 == np.inf)
+
         self.unset_wall(pos)
         return exit_blocked
 
@@ -200,10 +216,12 @@ class GameState:
         '''
         Goes through all saved available wall placements, removes them if they do not work
         '''
+        wall_placements = []
         for i, j, isHorizontal in self.saved_wall_placements:
             pos = (i,j)
-            if not self.is_wall_placement_valid(pos, isHorizontal):
-                self.saved_wall_placements.remove((*pos, isHorizontal))
+            if self.is_wall_placement_valid(pos, isHorizontal):
+                wall_placements.append((*pos, isHorizontal))
+        self.saved_wall_placements = wall_placements
 
 
     def get_available_wall_placements(self):
@@ -218,7 +236,7 @@ class GameState:
                 return wall_placements
 
         # valid wall placement already known already found
-        if self.saved_wall_placements:
+        if len(self.saved_wall_placements) > 0:
             return self.saved_wall_placements
 
         # calculate wall placements
@@ -282,9 +300,9 @@ class GameState:
 
 
 
-    def move_piece(self, new_pos, compute_new_wall_placements = True):
+    def move_piece(self, new_pos : tuple, compute_new_wall_placements = True):
         '''
-        Moves a piece to a new_pos
+        Moves the current player to a new_pos
         '''
 
         if self.player1:
@@ -294,17 +312,17 @@ class GameState:
             pos = self.player2_pos
             otherpos = self.player1_pos
 
-        if not self.is_valid_move(pos, new_pos) or np.array_equal(new_pos, otherpos):
+        if not self.is_valid_move(pos, new_pos) or new_pos == otherpos:
             print('CRAP', new_pos)
             exit(2)
 
         if self.player1:
-            self.player1_pos = np.array(new_pos)
+            self.player1_pos = copy(new_pos)
         else:
-            self.player2_pos = np.array(new_pos)
+            self.player2_pos = copy(new_pos)
 
         if compute_new_wall_placements:
-            wall_placements = self.get_available_wall_placements()
+            wall_placements = self.saved_wall_placements
 
             for i in [-1, 0]:
                 for j in [-1,0]:
