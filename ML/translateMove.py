@@ -30,3 +30,7 @@ def int_to_move(board_size: int, move_int: int) -> list:
         row = placement_int // (board_size - 1)
         col = placement_int % (board_size - 1)
         return [row, col, is_horizontal]
+
+
+
+# import code; code.interact(local = locals())

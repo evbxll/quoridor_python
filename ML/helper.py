@@ -1,3 +1,6 @@
+import time
+import sys
+
 def progress_bar(current, total):
     # Clear previous progress bar (move cursor up one line and clear it)
     if current > 1:
@@ -11,7 +14,4 @@ def progress_bar(current, total):
     sys.stdout.write(f"Progress: [{'#' * progress_percent}{' ' * (100 - progress_percent)}] ")
     sys.stdout.write(f"{current}/{total} ({progress_percent}%)")
     sys.stdout.flush()
-
-    # Simulate some work (replace this with your actual work)
-    time.sleep(0.1)
     sys.stdout.write("\n")  # Move to the next line after completing the progress update

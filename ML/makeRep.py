@@ -17,7 +17,6 @@ class Game_data:
         rows = len(game_data)  # Number of rows (outer list length)
         columns = [len(row) for row in game_data]
         print(f"Number of rows (outer list length): {rows}")
-        print(f"Number of columns (inner list lengths): {columns}")
         print(f"Size {game_data[0][0][0]}\nWalls {game_data[0][0][1]}")
 
         self.data = game_data
@@ -33,9 +32,13 @@ class Game_data:
         p1_walls_left = walls
         p2_walls_left = walls
 
+        p1_won = len(game) % 2 == 1
+        next_move = []
+
 
         for i, action in enumerate(game):
           if (i >= stopline):
+              next_move = action
               break
           if len(action) == 2:
             if i % 2 == 0: # player 1
@@ -63,9 +66,9 @@ class Game_data:
         vertical_int = vertical_placement.astype(int)
         board_tensor = np.stack((horizontal_int, vertical_int, player_pos), axis=-1)
 
-        return (board_tensor, p1_walls_left, p2_walls_left)
+        return (board_tensor, p1_walls_left, p2_walls_left, p1_won, next_move)
 
-d = Game_data('/home/linux_root/GithubProjs/quoridor_python/saved_games/2024-06-28_21:09_(path-search | path-search)_rounds_1000.pkl')
-r=d.getRoundLine(100,14)
+# d = Game_data('/home/linux_root/GithubProjs/quoridor_python/saved_games/2024-06-28_21:09_(path-search | path-search)_rounds_1000.pkl')
+# r=d.getRoundLine(100,14)
 
 # import code; code.interact(local = locals())
