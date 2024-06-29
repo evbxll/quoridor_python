@@ -6,15 +6,11 @@ from datetime import datetime
 
 def log_game(p1, p2, data, rounds):
     current_date = datetime.now().strftime("%Y-%m-%d_%H:%M")
-    folder_name = f"{current_date}_({p1} | {p2})"
+    file_path = f"{current_date}_({p1} | {p2})_rounds_{rounds}.pkl"
     prev_folder = "saved_games/"
 
     # Create directory/folder
-    folder_path = os.path.join(prev_folder, folder_name)
-    os.makedirs(folder_path, exist_ok=True)
-
-    # Create and write to a file inside the directory
-    file_path = os.path.join(folder_path, f"rounds_{rounds}.pkl")
+    file_path = os.path.join(prev_folder, file_path)
     try:
         with open(file_path, 'wb') as file:
             pickle.dump(data, file)
@@ -26,12 +22,23 @@ def log_game(p1, p2, data, rounds):
         return 1
 
 
+import argparse
+
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Script with command-line arguments.')
 
-    VERBOSE = 0
-    DELAY = 0#0.5
+    parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose mode')
+    parser.add_argument('--r', type=int, required=True, help='Number of rounds')
+    parser.add_argument('--s', type=float, default=0.0, help='Move delay time (default: 0.1)')
 
-    g = Game(VERBOSE, 100, DELAY)
+
+    args = parser.parse_args()
+
+    VERBOSE = 1 if args.verbose else 0
+    GAMES = args.r
+    DELAY = args.s
+
+    g = Game(VERBOSE, GAMES, DELAY)
     g.play()
     print(g.player_simulation_algorithms)
     print(g.wins)

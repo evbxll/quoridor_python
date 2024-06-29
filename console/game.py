@@ -31,7 +31,7 @@ class Game:
         self.sim_delay = sim_delay
         self.rounds = rounds
         self.wins = [0,0]
-        self.hist_per_round = [[],]
+        self.hist_per_round = [[(SIZE, WALLS)],]
 
         # self.quick_run("path-search", "path-search")
         self.initialize_sim()
@@ -90,7 +90,7 @@ class Game:
         return best_action
 
 
-    def minimax_agent(self, game_state : GameState, is_player1_turn, depth = 1):
+    def minimax_agent(self, game_state : GameState, is_player1_turn, depth = 2):
         alpha = -np.inf
         beta = np.inf
         flip = 1 if is_player1_turn else -1
@@ -281,11 +281,11 @@ class Game:
                 self.game_state.reinitialize()
 
 
-                winner = 'P1' if winner_ind == 0 else 'P2'
+                winner = '  P1' if winner_ind == 0 else 'P2'
                 self.print_colored_output("The winner is " + winner + ".", Color.CYAN)
 
                 if(self.rounds > 0):
-                    self.hist_per_round.append([])
+                    self.hist_per_round.append([(SIZE, WALLS)])
                     self.execution_times.append([[],[]])
                 continue
 
