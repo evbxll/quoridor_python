@@ -22,6 +22,9 @@ class Game_data:
         self.data = game_data
 
     def getRoundLine(self, round, stopline):
+        '''
+        Returns the state of round at stopline, with the tensor as 3x9x9
+        '''
 
         game = self.data[round][1:]
 
@@ -64,7 +67,7 @@ class Game_data:
 
         horizontal_int = horizontal_placement.astype(int)
         vertical_int = vertical_placement.astype(int)
-        board_tensor = np.stack((horizontal_int, vertical_int, player_pos), axis=-1)
+        board_tensor = np.stack((horizontal_int, vertical_int, player_pos), axis=0)
 
         return (board_tensor, p1_walls_left, p2_walls_left, p1_won, next_move)
 
