@@ -25,19 +25,15 @@ def generate_synthetic_data(num_samples, file, batch_size=1):
 
     for _ in range(num_samples):
         rand_round = random.randint(0, rounds-1)
-        rand_line = random.randint(len(g.data[rand_round])//4, len(g.data[rand_round])-1)
-        tensor, p1_walls, p2_walls, p1_won, next_move = g.getRoundLine(rand_round, rand_line)
+        rand_line = random.randint(0, len(g.data[rand_round])-1)
+        hor_wall_tensor, ver_wall_tensor, player_pos_tensor, p1_walls, p2_walls, p1_won, next_move = g.getRoundLine(rand_round, rand_line)
 
 
-        tensor3D_tensor = torch.tensor(tensor, dtype=torch.float32)
-        # print(tensor3D_tensor.shape)
-        int1_expanded = torch.full((1, 9, 9), p1_walls)
-        int2_expanded = torch.full((1, 9, 9), p2_walls)
-        tensor4D_tensor = torch.cat((tensor3D_tensor, int1_expanded, int2_expanded), dim=0)
-
-        # print(tensor4D_tensor.shape)
-        X.append(tensor4D_tensor)
-        y.append(int(p1_won))
+        # hor_wall_tensor
+        # hor_wall_tensor
+        # hor_wall_tensor
+        # X.append(tensor4D_tensor)
+        y.append(int(p1_won), next_move)
 
     # Convert to PyTorch Dataset and DataLoader
     X = torch.stack(X, dim=0)  # Stack all tensors in X into a single tensor along batch dimension
@@ -124,8 +120,8 @@ def train_model(data_loader, epochs):
         print(f"Epoch {epoch + 1}/{epochs}, Loss: {loss.item():.4f}")
 
 # Example usage
-TRAIN_FILE = "saved_games/2024-06-28_21:09_(path-search | path-search)_rounds_1000.pkl"
-TRAIN_NUM_DATA_SAMPLES = 10000
+TRAIN_FILE = "../saved_games/2024-08-15_08:03_(path-search | path-search)_rounds_2.pkl"
+TRAIN_NUM_DATA_SAMPLES = 100
 TRAIN_BATCH_SIZE = 1024
 EPOCHS = 100
 
@@ -137,8 +133,8 @@ train_model(data_loader, EPOCHS)
 
 
 
-TEST_FILE = "saved_games/2024-07-01_21:25_(path-search | path-search)_rounds_1000.pkl"#"saved_games/2024-07-01_21:25_(path-search | path-search)_rounds_1000.pkl"
-TEST_NUM_DATA_SAMPLES = 1000
+TEST_FILE = "../saved_games/2024-08-18_20:40_(path-search | path-search)_rounds_20.pkl"#"saved_games/2024-07-01_21:25_(path-search | path-search)_rounds_1000.pkl"
+TEST_NUM_DATA_SAMPLES = 10
 
 def runtest(test_rounds, file):
     total_loss = 0.0
@@ -203,5 +199,8 @@ def runtest(test_rounds, file):
     # Optionally, explicitly close the plot to free up resources
     plt.close()
 
-
 runtest(TEST_NUM_DATA_SAMPLES, TEST_FILE)
+
+'''
+CNN architecture, prune available moves
+'''

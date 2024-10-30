@@ -30,6 +30,8 @@ if __name__ == '__main__':
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose mode')
     parser.add_argument('--r', type=int, required=True, help='Number of rounds')
     parser.add_argument('--s', type=float, default=0.0, help='Move delay time (default: 0.1)')
+    parser.add_argument('-n', "--nosave", action='store_true', help='Prevent game file saving')
+
 
 
     args = parser.parse_args()
@@ -37,6 +39,7 @@ if __name__ == '__main__':
     VERBOSE = 1 if args.verbose else 0
     GAMES = args.r
     DELAY = args.s
+    NOSAVE = 1 if args.nosave else 0
 
     g = Game(VERBOSE, GAMES, DELAY)
     g.play()
@@ -50,4 +53,5 @@ if __name__ == '__main__':
     l2 = sum([len(r[1]) for r in g.execution_times])
 
     print("Average ex: ", t1*1.0/l1, t2*1.0/l2)
-    log_game(g.player_simulation_algorithms[0], g.player_simulation_algorithms[1], g.hist_per_round, len(g.hist_per_round))
+    if not NOSAVE:
+        log_game(g.player_simulation_algorithms[0], g.player_simulation_algorithms[1], g.hist_per_round, len(g.hist_per_round))

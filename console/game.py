@@ -14,8 +14,9 @@ DEFAULT_WALL_COLOR = Color.PINK
 PLAYER1COLOR = Color.LIGHT_GREEN
 PLAYER2COLOR = Color.LIGHT_RED
 
-SIZE = 9
-WALLS = 10 if SIZE == 9 else int((SIZE**2)//4 - SIZE*1.5 + 3.25)
+SIZE = 5
+# y=a_{0}+a_{1}x+a_{2}x^{2}+a_{3}x^{3}, a_{0}=-6.4276, a_{1}=3.4745, a_{2}=-0.4058, a_{3}=0.0255
+WALLS = 10 if SIZE == 9 else round(-6.4276 + 3.4745*SIZE + -0.4058*(SIZE**2) + 0.0255 * (SIZE**3))
 
 MoveKeyValues = "".join([str(i) for i in range(SIZE)])
 WallKeyValues = "".join([chr(ord('a') + i).upper() for i in range(SIZE-1)])
@@ -354,9 +355,9 @@ class Game:
 
                 # (i%2 , j%2):
                 # (0,0) means a cell
-                # (0,1) means a possible ver wall
-                # (1,0) means a possible hor wall
-                # (1,1) means a intersection of walls
+                # (0,1) means a possible ver border wall
+                # (1,0) means a possible hor border wall
+                # (1,1) means a intersection point of borders (corner of cell)
 
                 if i % 2 == 0:
                     x = i//2

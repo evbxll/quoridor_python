@@ -7,7 +7,6 @@ class Game_data:
         self.file_path = file_path
         self.data = []
 
-
         self.initialize_game()
 
     def initialize_game(self):
@@ -65,11 +64,7 @@ class Game_data:
               else:
                   p2_walls_left -= 1
 
-        horizontal_int = horizontal_placement.astype(int)
-        vertical_int = vertical_placement.astype(int)
-        board_tensor = np.stack((horizontal_int, vertical_int, player_pos), axis=0)
-
-        return (board_tensor, p1_walls_left, p2_walls_left, p1_won, next_move)
+        return (horizontal_placement, vertical_placement, player_pos, p1_walls_left, p2_walls_left, p1_won, next_move)
 
 # d = Game_data('/home/linux_root/GithubProjs/quoridor_python/saved_games/2024-06-28_21:09_(path-search | path-search)_rounds_1000.pkl')
 # r=d.getRoundLine(100,14)

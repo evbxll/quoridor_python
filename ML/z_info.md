@@ -32,3 +32,4 @@
 - **Model 2: Action Selection Prediction**:
   - *Description*: Predicts the likelihood of success for a set of game actions from the current board state.
   - *Type*: Predictive model outputting probabilities or scores for possible game actions. Used to prune game tree and select actions
+  - *Thoughts*: There might not exist a optimal move set (or it is not known) so this might be better suited for use in RL of some sort.

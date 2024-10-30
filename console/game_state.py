@@ -185,7 +185,7 @@ class GameState:
 
     def temp_set_wall(self, pos : tuple, isHorizontal : bool):
         '''
-        Temp sets a wall, not player colors tho
+        Temp sets a wall, but not player colors
         '''
         if(isHorizontal):
             self.horwalls[pos[0], pos[1]] = True
@@ -243,16 +243,14 @@ class GameState:
         for i in range(self.rows):
             for j in range(self.cols):
                 pos = (i,j)
-                isHorizontal = True
 
                 # check horizontals
-                if self.is_wall_placement_valid(pos, isHorizontal):
-                    wall_placements.append((*pos, isHorizontal))
+                if self.is_wall_placement_valid(pos, isHorizontal = True):
+                    wall_placements.append((*pos, True))
 
-                isHorizontal = False
                 # check verticals
-                if self.is_wall_placement_valid(pos, isHorizontal):
-                    wall_placements.append((*pos, isHorizontal))
+                if self.is_wall_placement_valid(pos, isHorizontal = False):
+                    wall_placements.append((*pos, False))
 
         # save for reuse
         self.saved_wall_placements = wall_placements
