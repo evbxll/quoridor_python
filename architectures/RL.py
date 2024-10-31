@@ -65,36 +65,3 @@ model = RL_CNNModel().to(device)
 def tree_expl():
     game_state = GameState()
     game_state.get_available_wall_placements()
-
-
-'''
-RL policy (no expert)
-Value policy
-
-action space (12 + 2*(N-1)^2)
-    moves {left, right, up, down, top-left, top-right, bottom_left, bottom_right, skip_left, skip_right, skip_up, skip_down}
-    walls {(i,j, h) for [i,j in N-1],[h in 0,1]}
-
-value space:
-    [-1.0, ... , 1.0]
-
-We don't have expert, either use estimation expert, or find other way of exploration
-
-transformer?
-(embedding, pass through multi-layer transformer w/ self-attention)
-- issue is that all need to be embeded into same dim, they sort of all need to be embedded together
-embedding:
-    create token for each things (vert wall present, vert wall not present, horiz wall present, no hor wall, empty_cell, player1, player2, player1_walls, player2_walls, is_player1_turn)
-    positional embedding
-transformer:
-    outputs either
-    - softmax on action space (then can choose top k)
-    - single value sigmoided to (-1 ... 1)
-
-
-CNN?
-Make a grid of the game board, perform conv on that, flatten, then add numerical inputs (wall nums, player pos, etc)
-
-
-
-'''

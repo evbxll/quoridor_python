@@ -42,6 +42,7 @@ if __name__ == '__main__':
     NOSAVE = 1 if args.nosave else 0
 
     g = Game(VERBOSE, GAMES, DELAY)
+    g.initialize_sim()
     g.play()
     print(g.player_simulation_algorithms)
     print(g.wins)

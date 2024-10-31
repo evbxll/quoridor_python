@@ -14,7 +14,7 @@ DEFAULT_WALL_COLOR = Color.PINK
 PLAYER1COLOR = Color.LIGHT_GREEN
 PLAYER2COLOR = Color.LIGHT_RED
 
-SIZE = 5
+SIZE = 9
 # y=a_{0}+a_{1}x+a_{2}x^{2}+a_{3}x^{3}, a_{0}=-6.4276, a_{1}=3.4745, a_{2}=-0.4058, a_{3}=0.0255
 WALLS = 10 if SIZE == 9 else round(-6.4276 + 3.4745*SIZE + -0.4058*(SIZE**2) + 0.0255 * (SIZE**3))
 
@@ -34,8 +34,6 @@ class Game:
         self.wins = [0,0]
         self.hist_per_round = [[(SIZE, WALLS)],]
 
-        # self.quick_run("path-search", "path-search")
-        self.initialize_sim()
 
 
     def quick_run(self, bot1, bot2):
@@ -238,7 +236,7 @@ class Game:
             self.game_state.execute_action(action)
             t2 = time.time()
             self.execution_times[-1][index].append(round(t2 - t1, 4))
-            loggable_action = tuple(x if not isinstance(x, bool) else int(x) for x in action)
+            loggable_action = tuple(int(x) for x in action)
             self.hist_per_round[-1].append(loggable_action)
 
             if self.verbose:

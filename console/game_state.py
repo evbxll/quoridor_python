@@ -56,7 +56,7 @@ class GameState:
 
 
     def copy(self):
-        game_state = GameState()
+        game_state = GameState(self.size, self.walls)
         game_state.player1_pos = copy(self.player1_pos)
         game_state.player2_pos = copy(self.player2_pos)
         game_state.verwalls = copy(self.verwalls)
