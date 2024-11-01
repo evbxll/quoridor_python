@@ -1,5 +1,4 @@
-import numpy as np
-
+import torch
 
 from copy import *
 from time import *
@@ -29,9 +28,9 @@ class GameState:
         self.player1_pos: tuple = tuple([self.size-1, self.size//2])
         self.player2_pos: tuple = tuple([0, self.size//2])
 
-        self.verwalls = np.zeros((self.rows, self.cols), dtype=bool)
-        self.horwalls = np.zeros((self.rows, self.cols), dtype=bool)
-        self.wall_colors_board = np.zeros((self.rows, self.cols), dtype=int)
+        self.verwalls = torch.zeros((self.rows, self.cols), dtype=bool)
+        self.horwalls = torch.zeros((self.rows, self.cols), dtype=bool)
+        self.wall_colors_board = torch.zeros((self.rows, self.cols), dtype=int)
 
 
     def reinitialize(self):
@@ -41,9 +40,9 @@ class GameState:
         self.player1_pos = tuple([self.size-1, self.size//2])
         self.player2_pos = tuple([0, self.size//2])
 
-        self.verwalls = np.zeros((self.rows, self.cols), dtype=bool)
-        self.horwalls = np.zeros((self.rows, self.cols), dtype=bool)
-        self.wall_colors_board = np.zeros((self.rows, self.cols), dtype=int)
+        self.verwalls = torch.zeros((self.rows, self.cols), dtype=bool)
+        self.horwalls = torch.zeros((self.rows, self.cols), dtype=bool)
+        self.wall_colors_board = torch.zeros((self.rows, self.cols), dtype=int)
 
         self.player1 = True
         self.size = self.size
@@ -119,7 +118,7 @@ class GameState:
 
         #standard moves
         for x,y in [(pos[0]+i, pos[1] + j) for (i,j) in dirs]:
-            if self.is_valid_move(pos, (x,y)) and not np.array_equal((x,y), otherpos):
+            if self.is_valid_move(pos, (x,y)) and not ((x,y) == otherpos):
                 available_moves.append((x,y))
 
         # hor jump
@@ -207,7 +206,7 @@ class GameState:
 
         # check paths
         p1, p2 = astar_search(self)
-        exit_blocked = (p1 == np.inf or p2 == np.inf)
+        exit_blocked = (p1 == torch.inf or p2 == torch.inf)
 
         self.unset_wall(pos)
         return exit_blocked
@@ -343,10 +342,9 @@ class GameState:
         return self.player1_pos[0] == 0 or self.player2_pos[0] == self.size-1
 
     def get_winner(self):
-
         if self.player1_pos[0] == 0:
             return 0
         elif self.player2_pos[0] == self.rows:
             return 1
         else:
-            return -1
+            raise ValueError

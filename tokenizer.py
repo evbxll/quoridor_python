@@ -52,10 +52,10 @@ class Tokenizer:
     player_turn = torch.tensor([self.token_to_ind['p1_turn' if p1_turn else 'p2_turn']])
 
 
-    return torch.cat((flat_h, flat_v, flat_p, p1_wal, p2_wal, player_turn))
+    return torch.cat((flat_h, flat_v, flat_p, p1_wal, p2_wal, player_turn)).int()
 
 
-h = torch.tensor([[True, False, False], [True, False, True], [False, False, False]])
-p = torch.tensor([[0, 0, 1], [0, 0, 0], [0, 2, 0]])
-t = Tokenizer()
-print(t.encode(h,h,p, 10, 3, True))
+# h = torch.tensor([[True, False, False], [True, False, True], [False, False, False]])
+# p = torch.tensor([[0, 0, 1], [0, 0, 0], [0, -1, 0]])
+# t = Tokenizer()
+# print(t.encode(h,h,p, 10, 3, True))

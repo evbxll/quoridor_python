@@ -1,4 +1,3 @@
-import numpy as np
 import random
 import time
 
@@ -8,31 +7,36 @@ from console.algorithms.minimax_alpha_beta_pruning import minimax_search
 from console.search.astar import astar_search
 from console.algorithms.randombot import randombot_action
 
+from NNbot import NN_Bot
+from tokenizer import Tokenizer
+import torch
 
 
-DEFAULT_WALL_COLOR = Color.PINK
+MAGENTA = Color.PINK
 PLAYER1COLOR = Color.LIGHT_GREEN
 PLAYER2COLOR = Color.LIGHT_RED
 
-SIZE = 9
-# y=a_{0}+a_{1}x+a_{2}x^{2}+a_{3}x^{3}, a_{0}=-6.4276, a_{1}=3.4745, a_{2}=-0.4058, a_{3}=0.0255
-WALLS = 10 if SIZE == 9 else round(-6.4276 + 3.4745*SIZE + -0.4058*(SIZE**2) + 0.0255 * (SIZE**3))
 
-MoveKeyValues = "".join([str(i) for i in range(SIZE)])
-WallKeyValues = "".join([chr(ord('a') + i).upper() for i in range(SIZE-1)])
+
+# MoveKeyValues = "".join([str(i) for i in range(SIZE)])
+# WallKeyValues = "".join([chr(ord('a') + i).upper() for i in range(SIZE-1)])
 
 class Game:
-    def __init__(self, verbose = True, rounds = 1, sim_delay = 0.5):
+    def __init__(self, verbose = True, rounds = 1, sim_delay = 0.5, SIZE = 9):
+
+        # y=a_{0}+a_{1}x+a_{2}x^{2}+a_{3}x^{3}, a_{0}=-6.4276, a_{1}=3.4745, a_{2}=-0.4058, a_{3}=0.0255
+        WALLS = 10 if SIZE == 9 else round(-6.4276 + 3.4745*SIZE + -0.4058*(SIZE**2) + 0.0255 * (SIZE**3))
 
         self.player_simulation_algorithms = ["randomBot", "randomBot"]
         self.game_state = GameState(SIZE, WALLS)
         self.verbose = verbose
-        self.algorithms = ["randomBot", "impatientBot", "minimax-alpha-beta-pruning", "path-search"]
+        self.algorithms = ["randomBot", "impatientBot", "minimax", "path-search", "NN_Bot"]
         self.execution_times = [[[],[]]]
         self.sim_delay = sim_delay
         self.rounds = rounds
         self.wins = [0,0]
         self.hist_per_round = [[(SIZE, WALLS)],]
+
 
 
 
@@ -62,6 +66,10 @@ class Game:
                 if 0 <= int(one) - 1 < len(self.algorithms) and 0 <= int(two) - 1 < len(self.algorithms):
                     self.player_simulation_algorithms[0] = self.algorithms[int(one) - 1]
                     self.player_simulation_algorithms[1] = self.algorithms[int(two) - 1]
+                    if self.player_simulation_algorithms[0] == "NN_Bot":
+                        self.nn1 = NN_Bot(True, self.game_state.size)
+                    if self.player_simulation_algorithms[1] == "NN_Bot":
+                        self.nn2 = NN_Bot(False, self.game_state.size)
                     Game.print_colored_output("Chosen algorithm for player 1 is {0:30}".format(
                         self.player_simulation_algorithms[0].upper()), Color.CYAN)
                     Game.print_colored_output("Chosen algorithm for player 2 is {0:30}".format(
@@ -90,10 +98,10 @@ class Game:
 
 
     def minimax_agent(self, game_state : GameState, is_player1_turn, depth = 2):
-        alpha = -np.inf
-        beta = np.inf
+        alpha = -torch.inf
+        beta = torch.inf
         flip = 1 if is_player1_turn else -1
-        best_val = -np.inf
+        best_val = -torch.inf
 
         d = {}
         game_state.check_wall_blocks_exit_on_gen = False
@@ -146,7 +154,7 @@ class Game:
 
 
         flip = 1 if is_player1_turn else -1
-        best_val = -np.inf
+        best_val = -torch.inf
         d = {}
 
         max_reward_func = lambda p1,p2, flip : (6*p2-5*p1) if flip == 1 else (6*p1-5*p2)
@@ -191,7 +199,7 @@ class Game:
 
             ev = max_reward_func(p1,p2, flip)
 
-            if (p1 != np.inf and p2 != np.inf):
+            if (p1 != torch.inf and p2 != torch.inf):
                 if (ev >= best_val):
                     best_val = ev
                     d[wall] = ev
@@ -216,7 +224,7 @@ class Game:
 
         cop = self.game_state#.copy()
         t1 = time.time()
-        if self.player_simulation_algorithms[index] == "minimax-alpha-beta-pruning":
+        if self.player_simulation_algorithms[index] == "minimax":
             action = self.minimax_agent(cop, cop.player1)
         elif self.player_simulation_algorithms[index] == "path-search":
             action = self.pathsearch_agent(cop, cop.player1)
@@ -228,6 +236,11 @@ class Game:
             action = self.randombot_agent(cop)
         elif self.player_simulation_algorithms[index] == "impatientBot":
             action = self.impatientbot_agent(cop)
+        elif self.player_simulation_algorithms[index] == 'NN_Bot':
+            if index == 0:
+                action = self.nn1.best_move(cop)
+            else:
+                action = self.nn2.best_move(cop)
         else:
             print('No bot configured')
             exit(1)
@@ -283,8 +296,19 @@ class Game:
                 winner = '  P1' if winner_ind == 0 else 'P2'
                 self.print_colored_output("The winner is " + winner + ".", Color.CYAN)
 
+                if self.player_simulation_algorithms[0] == "NN_Bot":
+                    p1_won = winner_ind == 0
+                    self.nn1.update_model(p1_won)
+                    if self.rounds == 0:
+                        self.nn1.save_model()
+                if self.player_simulation_algorithms[1] == "NN_Bot":
+                    p1_won = winner_ind == 0
+                    self.nn2.update_model(p1_won)
+                    if self.rounds == 0:
+                        self.nn2.save_model()
+
                 if(self.rounds > 0):
-                    self.hist_per_round.append([(SIZE, WALLS)])
+                    self.hist_per_round.append([(self.game_state.size, self.game_state.walls)])
                     self.execution_times.append([[],[]])
                 continue
 
@@ -312,7 +336,7 @@ class Game:
             return
 
         g = self.game_state
-
+        print()
         print(PLAYER1COLOR + "{0:<15}".format("Player 1 walls") + Color.WHITE +
               "|" + PLAYER2COLOR + "{0:<15}".format(
             "Player 2 walls") + Color.RESET,
@@ -328,26 +352,23 @@ class Game:
             return
 
         g = self.game_state
-
-        # print(g.wallboard)
-
+        print()
         for i in range(g.size):
             if i == 0:
                 print("      {0:<2} ".format(i),
-                      end=DEFAULT_WALL_COLOR + chr(ord('a') + i).lower() + Color.RESET)
+                      end=MAGENTA + chr(ord('a') + i).lower() + Color.RESET)
             elif i == g.size - 1:
                 print("  {0:<3}".format(i), end=" ")
             else:
                 print("  {0:<2} ".format(i),
-                      end=DEFAULT_WALL_COLOR + chr(ord('a') + i).lower() + Color.RESET)
-        print()
+                      end=MAGENTA + chr(ord('a') + i).lower() + Color.RESET)
         print()
 
         for i in range(g.rows + g.size):
             if i % 2 == 0:
                 print("{0:>2}  ".format(i//2), end="")
             else:
-                print(DEFAULT_WALL_COLOR + "{0:>2}  ".format(chr(ord('a') + i//2).lower()) + Color.RESET, end="")
+                print(MAGENTA + "{0:>2}  ".format(chr(ord('a') + i//2).lower()) + Color.RESET, end="")
 
             for j in range(g.cols + g.size):
 
@@ -361,9 +382,9 @@ class Game:
                     x = i//2
                     y = j//2
                     if j%2 == 0:
-                        if np.array_equal(g.player1_pos, [x,y]):
+                        if g.player1_pos == (x, y):
                             print(PLAYER1COLOR + " {0:2} ".format("P1") + Color.RESET, end="")
-                        elif np.array_equal(g.player2_pos, [x,y]):
+                        elif g.player2_pos == (x, y):
                             print(PLAYER2COLOR + " {0:2} ".format("P2") + Color.RESET, end="")
                         else:
                             print("{0:4}".format(""), end="")
@@ -404,7 +425,11 @@ class Game:
 
     @staticmethod
     def get_wall_color(g : GameState, i : int, j : int):
-        return PLAYER1COLOR if g.wall_colors_board[i,j] == WallColor.PLAYER1 else PLAYER2COLOR
+        if g.wall_colors_board[i,j] == WallColor.PLAYER1:
+            return PLAYER1COLOR
+        elif g.wall_colors_board[i,j] == WallColor.PLAYER2:
+            return PLAYER2COLOR
+        return Color.ORANGE
 
     @staticmethod
     def print_colored_output(text, color, wipe=False, _end = '\n'):

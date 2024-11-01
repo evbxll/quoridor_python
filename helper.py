@@ -8,7 +8,7 @@ class COLOR:
     RESET = "\u001b[0m"
 
 def getNumRounds(file_path):
-    pattern = r"rounds_(\d+)"
+    pattern = r"rounds-(\d+)"
     # Use re.search to find the match
     match = re.search(pattern, file_path)
 

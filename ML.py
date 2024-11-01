@@ -40,7 +40,7 @@ embedding:
 transformer:
     outputs either
     - softmax on action space (then can choose top k)
-    - single value sigmoided to (-1 ... 1)
+    - single value sigmoided to (0 ... 1)
 
 
 CNN?
@@ -57,14 +57,14 @@ print(device)
 tokenizer = Tokenizer()
 
 
-def generate_synthetic_data(num_samples: int, file: str, batch_size: int = 1, end:float = 1.0) -> DataLoader:
+def generate_synthetic_data(num_samples: int, file: str, batch_size: int = 1, start=0.0, end = 1.0) -> DataLoader:
     X, y = [], []
     g = Game_data(file)
     rounds = getNumRounds(file)
 
     for _ in range(num_samples):
         # Select random round and line within the round
-        rand_round = random.randint(0, int(rounds*end))
+        rand_round = random.randint(int(rounds*start), int(rounds*end)-1)
         rand_line = random.randint(0, len(g.data[rand_round]) - 1)
 
         # Extract features for the selected round and line
@@ -133,23 +133,20 @@ def evaluate_model(data_loader: DataLoader, model: torch.nn.Module, criterion, d
 
     return avg_loss, accuracy
 
-
-
-
 # Example usage
-TRAIN_FILE = "saved_games/2024-10-31_16:56_(path-search | path-search)_rounds_100.pkl"
-split = 0.8
-TRAIN_NUM_DATA_SAMPLES = 1000
-TRAIN_BATCH_SIZE = 8
-EPOCHS = 30
-data_loader = generate_synthetic_data(TRAIN_NUM_DATA_SAMPLES, TRAIN_FILE, TRAIN_BATCH_SIZE, split)
+TRAIN_FILE = "saved_games/2024-10-31_18-26_(path-search - path-search)_rounds-100_size-5.pkl"
+TRAIN_NUM_DATA_SAMPLES = 5000
+TRAIN_BATCH_SIZE = 128
+EPOCHS = 20
+data_loader = generate_synthetic_data(TRAIN_NUM_DATA_SAMPLES, TRAIN_FILE, TRAIN_BATCH_SIZE, 0.0, 0.9)
+
 
 from architectures.transformer import SimpleTransformer
 # Instantiate the model and move it to GPU
 d_model = 32
-num_heads = 2
+num_heads = 4
 num_layers = 2
-dim_feedforward = 64
+dim_feedforward = 32
 for inp, out in data_loader:
     max_len = inp.shape[1]
     break
@@ -159,16 +156,26 @@ criterion = nn.MSELoss()
 optimizer = optim.AdamW(model.parameters(), lr=0.001)  # replace model with your model instance
 scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS, eta_min=0.00001)
 
+
+
+model_name = f"trained_model_{int(((max_len-3)/3)**0.5 + 1)}.pt"
 # import code; code.interact(local = locals())
 try:
-    model.load_state_dict(torch.load("trained_model.pth"))
+    model.load_state_dict(torch.load(model_name))
 except:
-    train_model(data_loader, model, optimizer, criterion, scheduler, EPOCHS, "trained_model.pth")
+    train_model(data_loader, model, optimizer, criterion, scheduler, EPOCHS, model_name)
 
+other_model = "model_(p1-True)_(device-cuda)_(dmodel-32)_(heads-4)_(layers-2)_(ff-32)_(maxlen-68).pt"
+try:
+    model.load_state_dict(torch.load(other_model))
+except:
+    pass
 
+test_data_loader = generate_synthetic_data(1000, TRAIN_FILE, TRAIN_BATCH_SIZE, 0.9, 1.0)
+evaluate_model(test_data_loader, model, criterion, device)
+print()
 
-
-def test_vis(model, criterion, file):
+def test_vis(model, criterion, file, start = 0.0, end = 1.0):
     '''
     Prints the game board and the model prediction
     '''
@@ -177,7 +184,7 @@ def test_vis(model, criterion, file):
 
     for _ in range(3):
         # Select random round and line within the round
-        rand_round = random.randint(int(split*rounds + 1), rounds - 1)
+        rand_round = random.randint(int(rounds*start), int(rounds*end)-1)
         rand_line = random.randint(0, len(g.data[rand_round]) - 1)
 
         # Extract features for the selected round and line
@@ -220,4 +227,4 @@ def test_vis(model, criterion, file):
             print(f"Predicted:\t {outputs.item()}")
             print(f"Loss:     \t {loss.item()}")
 
-test_loader = test_vis(model, criterion, TRAIN_FILE)
+test_loader = test_vis(model, criterion, TRAIN_FILE, 0.9, 1.0)

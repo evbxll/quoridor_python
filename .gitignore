@@ -6,3 +6,4 @@ passwords.py
 .vscode/
 **/*.png
 **/*.pkl
+**/*.pt
